@@ -1,0 +1,58 @@
+# Maintainer: epwv <281472559+epwv@users.noreply.github.com>
+pkgname=uncord-git
+_pkgname=uncord
+pkgver=0.5.r0.g0000000
+pkgrel=1
+pkgdesc="Discord in your terminal, with voice calls, inline images and screen sharing"
+arch=('x86_64' 'aarch64')
+url="https://github.com/epwv/uncord"
+license=('unknown')
+depends=('python' 'ffmpeg' 'opus' 'pipewire')
+makedepends=('git' 'python-pip')
+optdepends=('chafa: faster, nicer inline images'
+            'mpv: pop videos and streams out into a window'
+            'wl-clipboard: paste images on wayland'
+            'xclip: paste images on x11'
+            'libnotify: desktop notifications'
+            'gpu-screen-recorder: share your screen')
+provides=('uncord')
+conflicts=('uncord')
+options=('!strip' '!debug')
+source=("$_pkgname::git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd "$_pkgname"
+    printf "0.5.r%s.g%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+package() {
+    # python deps like discord.py-self master and davey aren't in the repos, so they live in a private venv
+    local venv="/usr/lib/$_pkgname"
+    python -m venv "$pkgdir$venv"
+    "$pkgdir$venv/bin/python" -m pip install --no-cache-dir --disable-pip-version-check --quiet "$srcdir/$_pkgname"
+    # the venv was built under $pkgdir, point its scripts at the real path
+    grep -rlI --null "$pkgdir" "$pkgdir$venv/bin" "$pkgdir$venv/pyvenv.cfg" | xargs -0 -r sed -i "s|$pkgdir||g"
+    rm -f "$pkgdir$venv"/lib/python*/site-packages/uncord-*.dist-info/direct_url.json
+    find "$pkgdir$venv" -name '__pycache__' -prune -exec rm -rf {} +
+
+    install -d "$pkgdir/usr/bin"
+    printf '#!/bin/sh\nexec %s/bin/uncord "$@"\n' "$venv" > "$pkgdir/usr/bin/uncord"
+    chmod 755 "$pkgdir/usr/bin/uncord"
+
+    install -d "$pkgdir/usr/share/applications"
+    cat > "$pkgdir/usr/share/applications/uncord.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=uncord
+GenericName=Discord client
+Comment=Discord in your terminal
+Exec=uncord
+Icon=internet-chat
+Terminal=true
+Categories=Network;Chat;InstantMessaging;
+Keywords=discord;chat;voice;
+DESKTOP
+
+    install -Dm644 "$srcdir/$_pkgname/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

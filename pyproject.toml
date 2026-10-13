@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uncord"
+version = "0.5"
+description = "A Discord client for the terminal, with voice, images and screen sharing"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "epwv", email = "281472559+epwv@users.noreply.github.com" }]
+dependencies = [
+    "discord.py-self[voice] @ git+https://github.com/dolfies/discord.py-self@2ba64a9a997e151a9c259984e0a179b1fdf4aff4",
+    "textual>=8.2,<9",
+    "rich>=13",
+    "textual-image>=0.12",
+    "pillow>=10",
+    "pynacl>=1.6",
+    "davey>=0.1.7",
+    "cryptography>=42",
+    "segno>=1.6",
+    "jeepney>=0.8",
+    "audioop-lts; python_version >= '3.13'",
+]
+
+[project.urls]
+Homepage = "https://github.com/epwv/uncord"
+Issues = "https://github.com/epwv/uncord/issues"
+
+[project.scripts]
+uncord = "uncord.__main__:main"
+
+[tool.setuptools]
+packages = ["uncord"]
