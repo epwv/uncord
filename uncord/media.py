@@ -61,10 +61,17 @@ def onlyEmojis(content: str) -> bool:
     return bool(c) and not EMOJI_RE.sub("", c).strip() and len(EMOJI_RE.findall(c)) <= 27
 
 
-def _sized(url: str, w: int = 800, h: int = 600) -> str:
-    if "media.discordapp.net" in url or "images-ext" in url:
+#ask discords image proxy for a smaller copy in the images own shape
+#giving it a box that isnt the same shape crops the picture
+def _sized(url: str, w: int = 800, h: int = 600, src=None) -> str:
+    if not ("media.discordapp.net" in url or "images-ext" in url):
+        return url
+    sw, sh = (getattr(src, "width", None), getattr(src, "height", None)) if src is not None else (None, None)
+    if sw and sh:
+        scale = min(w / sw, h / sh, 1.0)
+        w, h = max(1, round(sw * scale)), max(1, round(sh * scale))
         return url + ("&" if "?" in url else "?") + f"width={w}&height={h}"
-    return url
+    return url + ("&" if "?" in url else "?") + f"width={w}"
 
 
 def itemsOf(m: discord.Message) -> List[MediaItem]:
@@ -74,9 +81,9 @@ def itemsOf(m: discord.Message) -> List[MediaItem]:
         name = a.filename.lower()
         if ct.startswith("image/") or name.endswith(IMAGE_EXT):
             kind = "gif" if name.endswith(".gif") or ct == "image/gif" else "image"
-            out.append(MediaItem(a.filename, a.url, _sized(a.proxy_url), kind, a.is_spoiler()))
+            out.append(MediaItem(a.filename, a.url, _sized(a.proxy_url, src=a), kind, a.is_spoiler()))
         elif ct.startswith("video/") or name.endswith(VIDEO_EXT):
-            thumb = a.proxy_url + ("&" if "?" in a.proxy_url else "?") + "format=webp&width=400&height=300"
+            thumb = _sized(a.proxy_url + ("&" if "?" in a.proxy_url else "?") + "format=webp", 400, 300, src=a)
             out.append(MediaItem(a.filename, a.url, thumb, "video", a.is_spoiler()))
     for s in m.stickers:
         fmt = str(getattr(s, "format", "")).lower()
@@ -99,7 +106,7 @@ def itemsOf(m: discord.Message) -> List[MediaItem]:
                 MediaItem(
                     e.provider.name if e.provider and e.provider.name else "gif",
                     video.url,
-                    _sized(still),
+                    _sized(still, src=thumb),
                     "gif",
                     page=e.url or "",
                     alts=_alts(still, tUrl),
@@ -110,7 +117,7 @@ def itemsOf(m: discord.Message) -> List[MediaItem]:
                 MediaItem(
                     e.title or "image",
                     tUrl,
-                    _sized(tProxy or tUrl),
+                    _sized(tProxy or tUrl, src=thumb),
                     "gif" if tUrl.lower().split("?")[0].endswith(".gif") else "image",
                     page=e.url or "",
                     alts=_alts(tProxy, tUrl),
@@ -121,7 +128,7 @@ def itemsOf(m: discord.Message) -> List[MediaItem]:
                 MediaItem(
                     e.title or "video",
                     e.url or video.url,
-                    _sized(tProxy or tUrl),
+                    _sized(tProxy or tUrl, src=thumb),
                     "video",
                     alts=_alts(tProxy, tUrl),
                 )
@@ -131,7 +138,7 @@ def itemsOf(m: discord.Message) -> List[MediaItem]:
                 MediaItem(
                     e.title or "image",
                     image.url,
-                    _sized(image.proxy_url or image.url),
+                    _sized(image.proxy_url or image.url, src=image),
                     "image",
                     alts=_alts(image.proxy_url, image.url),
                 )
@@ -141,7 +148,7 @@ def itemsOf(m: discord.Message) -> List[MediaItem]:
                 MediaItem(
                     e.title or "thumbnail",
                     tUrl,
-                    _sized(tProxy or tUrl, 400, 300),
+                    _sized(tProxy or tUrl, 400, 300, src=thumb),
                     "image",
                     small=True,
                     alts=_alts(tProxy, tUrl),

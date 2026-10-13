@@ -7,7 +7,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 #key name what it does on by default
 PLUGINS = (
     ("message_logger", "MessageLogger", "keep deleted messages and show what edited ones said before", True),
-    ("show_usernames", "ShowMeYourName", "show @username next to nicknames", True),
+    ("show_usernames", "ShowMeYourName", "show @username next to nicknames", False),
     ("platform_icons", "PlatformIndicators", "show 🖥 📱 🌐 for the devices people are on", True),
     ("typing_indicator", "TypingIndicator", "✎ next to channels and DMs where someone is typing", True),
     ("call_timer", "CallTimer", "show how long you've been in a call", True),
@@ -17,6 +17,20 @@ PLUGINS = (
     ("silent_typing", "SilentTyping", "don't show others that you're typing", False),
     ("relationship_notifier", "RelationshipNotifier", "tell you when someone unfriends you or sends a request", True),
     ("rich_presence", "RichPresence", "games and apps on this pc set your activity like the desktop app (restart after)", True),
+    ("translate", "Translate", "translate messages from the message menu (enter or right click)", True),
+    ("view_raw", "ViewRaw", "see a message's raw text and markdown from the message menu", True),
+    ("who_reacted", "WhoReacted", "see who reacted with what from the message menu", True),
+    ("reverse_image", "ReverseImageSearch", "search an image on google lens from the message menu", True),
+    ("no_blocked", "NoBlockedMessages", "hide messages from people you blocked completely", False),
+    ("hidden_channels", "ShowHiddenChannels", "list channels you can't read with a 🔒", False),
+    ("pin_dms", "PinDMs", "pin DMs to the top of the list (right click a DM)", True),
+    ("member_count", "MemberCount", "show online and total members in the title bar", True),
+    ("show_connections", "ShowConnections", "show someone's linked accounts (Steam, Spotify…) on their profile", True),
+    ("anonymise_files", "AnonymiseFileNames", "upload files with random names", False),
+    ("reply_timestamp", "ReplyTimestamp", "show when the message you're replying to was sent", True),
+    ("valid_reply", "ValidReply", "fetch replied-to messages that aren't loaded instead of saying deleted", True),
+    ("unindent", "Unindent", "trim the extra indent from code blocks", True),
+    ("moyai", "Moyai", "🗿", False),
 )
 DEFAULTS = {key: on for key, _n, _d, on in PLUGINS}
 

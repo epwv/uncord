@@ -214,3 +214,5 @@ class Sidebar(Tree):
             self.app.channelMenu(obj)
         elif kind == "chan" and isForum(obj):
             self.app.threadPicker(obj)
+        elif kind == "chan" and isinstance(obj, (discord.DMChannel, discord.GroupChannel)):
+            self.app.dmMenu(obj)

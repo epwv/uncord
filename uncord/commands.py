@@ -9,7 +9,7 @@ import time
 import discord
 from rich.text import Text
 
-from . import filepick, plugins
+from . import filepick
 from . import voice as vmod
 from .fmt import PRIVATE, activityText, nameColour, snippet, statusDot, userStatus, nameBadges, platformIcons
 from .screens import Picker, TextScreen
@@ -69,6 +69,7 @@ class CommandsMixin:
   /share [720p30|1080p30|1080p60|1440p60|stop|stats]  (F10 shares your screen in the call)
   /watch \\[name|stop|stats|popout]  watch someone's screen share or camera (F11, or click 🔴LIVE / 📷)
   /camera  turn your webcam on or off (F12)
+  /settings (F3)  appearance, line spacing, notifications, chat, voice, plugins, updates
   /plugins  switch extras on and off: MessageLogger, ClearURLs, FakeNitro, SilentTyping, CallTimer and more
   Start a message with // to send a literal slash."""
 
@@ -80,32 +81,8 @@ class CommandsMixin:
         self.push_screen(TextScreen("uncord keys", body))
 
     #everything typed after a /
-    #vencord style plugin list enter toggles one and the list stays open
     def action_plugins(self) -> None:
-        entries = []
-        for key, name, desc, _default in plugins.PLUGINS:
-            on = plugins.enabled(self.cfg, key)
-            label = Text("☑ " if on else "☐ ", style="green" if on else "bright_black")
-            label.append(name, style="bold" if on else "")
-            label.append(f"  {desc}", style="bright_black")
-            entries.append((label, f"{name} {desc}".lower(), key))
-
-        def picked(key) -> None:
-            if not key:
-                return
-            on = plugins.toggle(self.cfg, key)
-            self.applyPlugins()
-            if key in ("show_usernames", "message_logger"):
-                for v in self.query_one("#messages").query("MessageView"):
-                    v.rerender()
-            if key == "platform_icons":
-                self.refreshMembers()
-            name = next(n for k, n, _d, _o in plugins.PLUGINS if k == key)
-            self.notify(f"{name} {'on' if on else 'off'}", timeout=2, markup=False)
-            self.action_plugins()
-
-        self.push_screen(Picker(entries, placeholder="Filter plugins…", title="Plugins · enter to switch on or off"),
-                         picked)
+        self.action_settings("plugins")
 
     #bot slash commands
 
@@ -424,7 +401,9 @@ class CommandsMixin:
             self.notify(f"Call sounds {'on' if on_ else 'off'}.")
             if on_:
                 self.sfx("join")
-        elif name in ("settings", "voicesettings", "audio"):
+        elif name in ("settings", "prefs", "options", "config"):
+            self.action_settings()
+        elif name in ("voicesettings", "audio", "voice"):
             self.action_voice_settings()
         elif name in ("voicestats", "vs"):
             self.notify(self.vc.statsText() if self.vc else "Not in voice.", markup=False, timeout=15)

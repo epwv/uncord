@@ -225,6 +225,11 @@ class AttachMixin:
                 self.notify(f"Can't read {p}: {e}", severity="error", markup=False)
 
     def addAttachment(self, name: str, data: bytes) -> None:
+        if self.plugin("anonymise_files"):
+            import secrets
+
+            ext = name.rsplit(".", 1)[1] if "." in name else ""
+            name = secrets.token_hex(4) + (f".{ext}" if ext else "")
         if len(self.attachments) >= 10:
             self.notify("Discord allows 10 files per message.", severity="warning")
             return

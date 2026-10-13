@@ -379,6 +379,11 @@ class ProfileScreen(ModalScreen):
         since = getattr(rel, "since", None)
         if since is not None and str(getattr(rel, "type", "")).endswith("friend"):
             t.append(f"\nFriends since {since.astimezone():%d %b %Y}", style="bright_black")
+        conns = getattr(profile, "connections", None) if profile else None
+        if conns and self.app.plugin("show_connections"):
+            #showconnections linked accounts like steam spotify github
+            names = [f"{str(getattr(c.type, 'name', c.type)).replace('_', ' ').title()}: {c.name}" for c in conns[:8]]
+            t.append("\n🔗 " + " · ".join(names), style="cyan")
         where = self._voiceChannel(u.id)
         if where:
             t.append(f"\nIn voice: 🔊 {where}", style="green")

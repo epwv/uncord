@@ -28,6 +28,7 @@ from . import voice as vmod
 from .config import Config
 from .fmt import (
     PRIVATE,
+    isBlocked,
     activityText,
     nameBadges,
     platformIcons,
@@ -112,6 +113,9 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
     #messages:focus { background: transparent; }
     .msg { width: 1fr; padding: 0; border-left: blank; }
     .msg.selected { border-left: thick $accent; background: $accent 12%; }
+    #messages.space-1 .msg.groupstart { margin-top: 1; }
+    #messages.space-2 .msg.groupstart { margin-top: 2; }
+    #messages.space-2 .msg { margin-bottom: 0; }
     .msg.selected .msgtext { text-style: bold; }
     .msgtext { width: 1fr; }
     .media { margin: 0 0 0 6; }
@@ -190,6 +194,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         Binding("ctrl+b", "toggle_sidebar", "Sidebar", priority=True),
         Binding("f2", "toggle_members", "Members", show=False, priority=True),
         Binding("f4", "inbox", "Inbox", priority=True),
+        Binding("f3", "settings", "Settings", priority=True),
         Binding("f7", "toggle_deafen", "Deafen", show=False),
         Binding("f10", "share", "Share screen", show=False, priority=True),
         Binding("f11", "watch", "Watch stream", show=False, priority=True),
@@ -239,7 +244,8 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         self._lastTalking = None
         self._reactionPending: set = set()
         self._ackTask: Optional[asyncio.Task] = None
-        self.notifyCmd = shutil.which("notify-send") if os.environ.get("UNCORD_NOTIFY", "1") != "0" else None
+        self.notifyCmd = None
+        self.applyNotify()
         self.frameCache = media.FrameCache(self.fetchCdn)
         self.audioPlayer = voicemsg.Player()
         self.recorder: Optional[voicemsg.Recorder] = None
@@ -294,6 +300,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         "toggle_sidebar",
         "toggle_members",
         "inbox",
+        "settings",
         "step",
         "step_unread",
         "history",
@@ -375,8 +382,57 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
 
     def updateAvailable(self, msg: str) -> None:
         self.notify(msg, timeout=10, markup=False)
-        self.query_one("#title", TitleBar).setRight(
-            Text(f"uncord {__version__}  ", style="bright_black") + Text("update available", style="bold yellow"))
+        self._updateNotice = True
+        self.refreshTitleRight()
+
+    #right side of the title bar member count then version
+    def refreshTitleRight(self) -> None:
+        t = Text()
+        g = self.currentGuild()
+        if g is not None and self.plugin("member_count"):
+            total = g.member_count or len(g.members)
+            online = getattr(g, "approximate_presence_count", None) or sum(
+                1 for mbr in g.members if userStatus(mbr) != "offline")
+            t.append("● ", style="green")
+            t.append(f"{online:,} online  ", style="bright_black")
+            t.append(f"{total:,} members   ", style="bright_black")
+        t.append(f"uncord {__version__}", style="bright_black")
+        if getattr(self, "_updateNotice", False):
+            t.append("  update available", style="bold yellow")
+        self.query_one("#title", TitleBar).setRight(t)
+
+    def applyNotify(self) -> None:
+        on = os.environ.get("UNCORD_NOTIFY", "1") != "0" and self.cfg.get("desktop_notify", True)
+        self.notifyCmd = shutil.which("notify-send") if on else None
+
+    #line spacing adds a gap above each new person in the chat
+    def applySpacing(self) -> None:
+        ml = self.query_one("#messages")
+        n = int(self.cfg.get("message_spacing", 1))
+        for k in range(3):
+            ml.set_class(k == n, f"space-{k}")
+
+    def action_settings(self, category: str = "appearance") -> None:
+        from .settings import SettingsScreen
+
+        self.push_screen(SettingsScreen(category))
+
+    #a plugin was switched so redraw whatever it touches
+    def pluginChanged(self, key: str) -> None:
+        self.applyPlugins()
+        if key in ("show_usernames", "message_logger", "reply_timestamp", "unindent", "translate"):
+            for v in self.query_one("#messages").query("MessageView"):
+                v.rerender()
+        elif key in ("platform_icons",):
+            self.refreshMembers()
+        elif key == "member_count":
+            self.refreshTitleRight()
+        elif key == "pin_dms":
+            self.rebuildDms()
+        elif key in ("hidden_channels", "no_blocked") and self._readyOnce:
+            self.buildSidebar()
+            if self.current is not None:
+                self.loadHistory(self.current)
 
     def plugin(self, key: str) -> bool:
         return plugins.enabled(self.cfg, key)
@@ -384,10 +440,13 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
     def applyPlugins(self) -> None:
         fmt.SHOW_USERNAMES = self.plugin("show_usernames")
         fmt.SHOW_PLATFORMS = self.plugin("platform_icons")
+        fmt.REPLY_TIMESTAMP = self.plugin("reply_timestamp")
+        fmt.UNINDENT = self.plugin("unindent")
 
     def on_mount(self) -> None:
         self.applyPlugins()
-        self.query_one("#title", TitleBar).setRight(Text(f"uncord {__version__}", style="bright_black"))
+        self.applySpacing()
+        self.refreshTitleRight()
         theme = os.environ.get("UNCORD_THEME") or self.cfg.get("theme") or "ansi-dark"
         self.theme = theme if theme in self.available_themes else "ansi-dark"
         if not self.cfg.get("show_sidebar", True):
@@ -462,9 +521,36 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
 
     #sidebar
 
+    def pinnedDms(self) -> list:
+        return [int(x) for x in self.cfg.get("pinned_dms", [])] if self.plugin("pin_dms") else []
+
     def privateChannelsSorted(self):
         chans = [c for c in self.client.private_channels if isinstance(c, PRIVATE)]
-        return sorted(chans, key=lambda c: c.last_message_id or c.id, reverse=True)
+        chans.sort(key=lambda c: c.last_message_id or c.id, reverse=True)
+        pinned = self.pinnedDms()
+        #pindms pinned ones first in the order you pinned them
+        return [c for p in pinned for c in chans if c.id == p] + [c for c in chans if c.id not in pinned]
+
+    def dmMenu(self, ch) -> None:
+        pinned = ch.id in self.pinnedDms()
+        entries = [(Text("✓ Mark as read"), "read", "read"), (Text("Copy channel ID", style="bright_black"), "copy", "copy")]
+        if self.plugin("pin_dms"):
+            entries.insert(0, (Text("📌 Unpin" if pinned else "📌 Pin to top"), "pin", "pin"))
+
+        def done(act) -> None:
+            if act == "pin":
+                ids = [x for x in self.pinnedDms() if x != ch.id] + ([] if pinned else [ch.id])
+                self.cfg["pinned_dms"] = ids
+                self.cfg.save()
+                self.rebuildDms()
+            elif act == "read":
+                self.clearUnread(ch)
+                self.scheduleAck(ch, 0)
+                self.relabel(ch)
+            elif act == "copy":
+                self.copyText(str(ch.id))
+
+        self.push_screen(Picker(entries, placeholder=channelName(ch)), done)
 
     def nodeLabel(self, ch) -> Text:
         unread = self.unreadCount(ch)
@@ -473,6 +559,8 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         isCur = self.current is not None and self.current.id == ch.id
         icon = channelIcon(ch)
         name = channelName(ch)
+        if not isinstance(ch, PRIVATE) and not canRead(ch):
+            icon = "🔒 "
         if muted and not ment:
             style = "bright_black"
         elif unread or ment:
@@ -496,6 +584,8 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
             t.append(f" {self.localUnread[ch.id]}", style="bold yellow")
         if self.incoming is not None and self.incoming.id == ch.id:
             t.append(" 📞")
+        if isinstance(ch, PRIVATE) and ch.id in self.pinnedDms():
+            t = Text("📌", style="bright_black") + t
         if ch.id in self.typingElsewhere:
             t.append(" ✎", style="bright_black")
         return t
@@ -699,7 +789,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
                 if isinstance(
                     c, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.ForumChannel)
                 )
-                and canRead(c)
+                and (canRead(c) or self.plugin("hidden_channels"))
             ]
             if visible:
                 out.append((cat, visible))
@@ -860,6 +950,9 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
     def _selected(self, ev: Tree.NodeSelected) -> None:
         kind, obj = ev.node.data or (None, None)
         if kind == "chan":
+            if not canRead(obj):
+                self.notify(f"You can't see #{channelName(obj)}, it's hidden from you.", markup=False)
+                return
             if isForum(obj):
                 self.forumPicker(obj)
                 return
@@ -1020,6 +1113,9 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
 
     #switch the chat to ch and remember it for next start
     def openChannel(self, ch, around=None, record: bool = True) -> None:
+        if not isinstance(ch, PRIVATE) and not canRead(ch):
+            self.notify(f"You can't see #{channelName(ch)}, it's hidden from you.", markup=False)
+            return
         prev = self.current
         if isForum(ch):
             self.forumPicker(ch)
@@ -1053,6 +1149,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         self.reveal(ch)
         self.loadHistory(ch, around)
         self.refreshMembers()
+        self.refreshTitleRight()
 
     @staticmethod
     def _sig(msgs) -> list:
@@ -1160,6 +1257,8 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
     def buildWidgets(self, msgs, prev: Optional[discord.Message], newAfter: Optional[int] = None):
         widgets = []
         newDone = newAfter is None or not newAfter
+        if self.plugin("no_blocked"):
+            msgs = [m for m in msgs if not isBlocked(m.author)]
         for m in msgs:
             d = m.created_at.astimezone().date()
             if prev is None or d != prev.created_at.astimezone().date():
@@ -1489,10 +1588,15 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         try:
             if editing:
                 await editing.edit(content=out)
-            elif replyTo:
-                await self.current.send(out, reference=replyTo, mention_author=not self.plugin("no_reply_mention"))
             else:
-                await self.current.send(out)
+                #@silent at the start sends without a notification like the desktop app
+                silent = out.startswith("@silent ")
+                if silent:
+                    out = out[len("@silent "):]
+                kw = dict(silent=True) if silent else {}
+                if replyTo:
+                    kw.update(reference=replyTo, mention_author=not self.plugin("no_reply_mention"))
+                await self.current.send(out, **kw)
         except discord.HTTPException as e:
             self.notify(f"Send failed: {e.text or e}", severity="error", markup=False)
             inp.value = text
@@ -1529,6 +1633,10 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
     async def onDiscordMessage(self, m: discord.Message) -> None:
         if not self._readyOnce:
             return
+        if self.plugin("no_blocked") and isBlocked(m.author):
+            return
+        if self.plugin("moyai") and "🗿" in m.content and self.current is not None and m.channel.id == self.current.id:
+            vmod.playSfx("boom", int(self.cfg.get("sfx_volume", 100)) / 100)
         ch = m.channel
         cached = self.msgCache.get(ch.id)
         if cached is not None and (not cached or cached[-1].id < m.id):

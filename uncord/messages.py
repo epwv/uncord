@@ -1,6 +1,8 @@
 #message list widgets one MessageView per message plus reactions
 from __future__ import annotations
 
+import logging
+
 from typing import List, Optional
 
 import discord
@@ -16,6 +18,7 @@ from . import media, sixelview
 from .fmt import renderMessage
 
 
+log = logging.getLogger("uncord")
 GROUP_SECONDS = 7 * 60  #messages closer than this stack under one name
 
 
@@ -124,12 +127,13 @@ class MessageView(Vertical):
     DEFAULT_CSS = "MessageView { height: auto; }"
 
     def __init__(self, message: discord.Message, grouped: bool = False) -> None:
-        super().__init__(classes="msg")
+        super().__init__(classes="msg" if grouped else "msg groupstart")
         self.message = message
         self.grouped = grouped
         self.revealed = False
         self.deleted = False
         self.edits: list = []
+        self.translation = None
         self.previewed: frozenset = frozenset()
         self._mediaKey = None
         self.mediaDone = False
@@ -141,6 +145,25 @@ class MessageView(Vertical):
     def on_mount(self) -> None:
         self.rerender()
         self.loadMedia()
+        ref = self.message.reference
+        if (ref is not None and ref.resolved is None and ref.message_id and self.app.plugin("valid_reply")
+                and self.message.type == discord.MessageType.reply):
+            self.fetchReply()
+
+    #validreply the replied message isnt loaded so get it rather than calling it deleted
+    @work(group="reply")
+    async def fetchReply(self) -> None:
+        ref = self.message.reference
+        try:
+            ch = self.app.client.get_channel(ref.channel_id) or self.message.channel
+            ref.resolved = await ch.fetch_message(ref.message_id)
+        except discord.NotFound:
+            return
+        except Exception:
+            log.debug("fetch reply", exc_info=True)
+            return
+        if self.is_attached:
+            self.rerender()
 
     def rerender(self) -> None:
         app = self.app
@@ -153,6 +176,7 @@ class MessageView(Vertical):
                 reveal=self.revealed,
                 deleted=self.deleted,
                 edits=tuple(self.edits),
+                translation=self.translation,
                 previewed=self.previewed,
                 reactions=False,
             )

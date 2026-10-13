@@ -157,6 +157,13 @@ PLATFORMS = (("desktop_status", "🖥", "desktop"), ("mobile_status", "📱", "p
 
 
 #which devices someone is on, members carry it and friends carry it on their relationship
+def isBlocked(u) -> bool:
+    try:
+        return bool(u.is_blocked())
+    except Exception:
+        return False
+
+
 def platforms(u) -> list:
     src = u if hasattr(u, "mobile_status") else getattr(u, "relationship", None)
     out = []
@@ -421,6 +428,10 @@ def markdown(text: str, ctx: MdContext) -> Text:
             out.append_text(mdLines(before.strip("\n"), ctx))
             out.append("\n")
         code = mt.group(2).strip("\n")
+        if UNINDENT:
+            import textwrap
+
+            code = textwrap.dedent(code)
         lang = (mt.group(1) or "").lower()
         if lang:
             out.append(f"┏ {lang}\n", style="bright_black")
@@ -509,6 +520,8 @@ def nameBadges(user, webhook: bool = False) -> Text:
 #plugin switches the app sets from config
 SHOW_USERNAMES = True
 SHOW_PLATFORMS = True
+REPLY_TIMESTAMP = True
+UNINDENT = True
 
 
 def renderMessage(
@@ -522,6 +535,7 @@ def renderMessage(
     reactions: bool = True,
     deleted: bool = False,
     edits: tuple = (),
+    translation=None,
 ):
     ctx = messageContext(m, meId, get_channel, reveal)
     grid = Table.grid(padding=(0, 1), expand=True)
@@ -533,6 +547,9 @@ def renderMessage(
     if isinstance(ref, discord.Message):
         rt = Text("╭ ", style="bright_black")
         rt.append(ref.author.display_name, style=Style(color=nameColour(ref.author), dim=True))
+        if REPLY_TIMESTAMP:
+            rt.append(ref.created_at.astimezone().strftime(" %H:%M" if ref.created_at.date() == m.created_at.date()
+                                                           else " %d %b %H:%M"), style="bright_black")
         rt.append(
             " "
             + snippet(
@@ -669,6 +686,8 @@ def renderMessage(
         body.stylize(Style(color="red", dim=True), 0, len(body))
         body.append("  deleted", style="bold red")
     #message logger keeps what it said before each edit
+    if translation:
+        extras.append(Text(f"🌐 {translation[0]}: ", style="bright_black") + Text(translation[1], style="italic"))
     for k, old in enumerate(edits):
         extras.insert(k, Text("✎ " + snippet(old, 300), style=Style(color="bright_black", strike=True)))
     if m.reactions and reactions:

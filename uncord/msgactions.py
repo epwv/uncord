@@ -3,18 +3,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import shutil
 import time
+from urllib.parse import quote
 
 import discord
 from rich.text import Text
+from textual import work
 from textual.widgets import Static
 
 from . import emojis as emo
 from . import gifs, media, voicemsg
 from .fmt import PRIVATE, snippet
-from .screens import Confirm, GifPicker, ImageScreen, Picker, ProfileScreen
+from .screens import Confirm, GifPicker, ImageScreen, Picker, ProfileScreen, TextScreen
 
 from .panels import ChatInput
 
@@ -248,6 +251,16 @@ class MessageActionsMixin:
         if not mine:
             acts += [("dm", f"✉ Message {m.author.display_name}", "m")]
         acts.append(("profile", "👤 Profile", "p"))
+        #plugin actions
+        if self.plugin("translate") and m.content:
+            acts.append(("translate", "🌐 Translate", ""))
+        if self.plugin("who_reacted") and m.reactions:
+            acts.append(("reacted", "☺ Who reacted", ""))
+        images = [it for it in media.itemsOf(m) if it.kind in ("image", "gif", "sticker")]
+        if self.plugin("reverse_image") and images:
+            acts.append(("lens", "🔍 Search image (Google Lens)", ""))
+        if self.plugin("view_raw"):
+            acts.append(("raw", "{ } View raw", ""))
         entries = [
             (Text(label) + Text(f"   {key}", style="bright_black"), label.lower(), act)
             for act, label, key in acts
@@ -268,6 +281,11 @@ class MessageActionsMixin:
                 "pin": lambda: self.togglePin(m),
                 "dm": lambda: self.openDm(m.author),
                 "profile": lambda: self.showProfile(m.author),
+                "translate": lambda: self.translateMessage(m),
+                "reacted": lambda: self.whoReacted(m),
+                "lens": lambda: self.openExternal(
+                    "https://lens.google.com/uploadbyurl?url=" + quote(images[0].url, safe="")),
+                "raw": lambda: self.viewRaw(m),
             }.get(act, lambda: None)()
 
         self.push_screen(
@@ -278,6 +296,52 @@ class MessageActionsMixin:
             ),
             done,
         )
+
+    #translate plugin uses the same free google endpoint as vencord
+    @work(group="translate")
+    async def translateMessage(self, m: discord.Message) -> None:
+        import aiohttp
+
+        lang = self.cfg.get("translate_to") or (os.environ.get("LANG", "en")[:2] or "en")
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {"client": "gtx", "sl": "auto", "tl": lang, "dt": "t", "q": m.content}
+        try:
+            async with aiohttp.ClientSession() as http:
+                async with http.get(url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as r:
+                    data = await r.json(content_type=None)
+            text = "".join(part[0] for part in data[0] if part and part[0])
+            source = data[2] if len(data) > 2 else "?"
+        except Exception as e:
+            self.notify(f"Couldn't translate: {e}", severity="error", markup=False)
+            return
+        w = self.viewFor(m.id)
+        if w is not None:
+            w.translation = (source, text)
+            w.rerender()
+        else:
+            self.notify(text, title=f"Translated from {source}", timeout=15, markup=False)
+
+    def viewRaw(self, m: discord.Message) -> None:
+        body = Text(m.content or "(no text)")
+        for a in m.attachments:
+            body.append(f"\n📎 {a.filename}  {a.url}", style="bright_black")
+        for e in m.embeds:
+            body.append(f"\n▣ embed: {e.title or e.type}  {e.url or ''}", style="bright_black")
+        body.append(f"\n\nid {m.id} · author {m.author.id} · {m.created_at.isoformat()}", style="bright_black")
+        self.push_screen(TextScreen(f"Raw message from {m.author.display_name}", body))
+
+    @work(group="reacted")
+    async def whoReacted(self, m: discord.Message) -> None:
+        body = Text()
+        for r in m.reactions:
+            try:
+                users = [u async for u in r.users(limit=50)]
+            except Exception:
+                users = []
+            body.append(f"{emo.emojiToStr(r.emoji) if isinstance(r.emoji, str) else ':' + r.emoji.name + ':'} "
+                        f"{r.count}  ", style="bold")
+            body.append(", ".join(u.display_name for u in users) + ("…" if r.count > len(users) else "") + "\n")
+        self.push_screen(TextScreen("Who reacted", body))
 
     def confirmDelete(self, m: discord.Message, ask: bool = True) -> None:
         if m.author.id != self.meId and not self.canManage(m):
