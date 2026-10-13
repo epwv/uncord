@@ -23,7 +23,7 @@ from textual.widgets.tree import TreeNode
 
 from . import emojis as emo
 from . import media, sixelview, voicemsg
-from . import fmt, golive, plugins, streamview
+from . import __version__, fmt, golive, plugins, streamview
 from . import voice as vmod
 from .config import Config
 from .fmt import (
@@ -111,7 +111,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
     #loading.on { display: block; }
     #messages:focus { background: transparent; }
     .msg { width: 1fr; padding: 0; border-left: blank; }
-    .msg.selected { border-left: thick $accent; }
+    .msg.selected { border-left: thick $accent; background: $accent 12%; }
     .msg.selected .msgtext { text-style: bold; }
     .msgtext { width: 1fr; }
     .media { margin: 0 0 0 6; }
@@ -373,6 +373,11 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         footer.compact = True
         yield footer
 
+    def updateAvailable(self, msg: str) -> None:
+        self.notify(msg, timeout=10, markup=False)
+        self.query_one("#title", TitleBar).setRight(
+            Text(f"uncord {__version__}  ", style="bright_black") + Text("update available", style="bold yellow"))
+
     def plugin(self, key: str) -> bool:
         return plugins.enabled(self.cfg, key)
 
@@ -382,6 +387,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
 
     def on_mount(self) -> None:
         self.applyPlugins()
+        self.query_one("#title", TitleBar).setRight(Text(f"uncord {__version__}", style="bright_black"))
         theme = os.environ.get("UNCORD_THEME") or self.cfg.get("theme") or "ansi-dark"
         self.theme = theme if theme in self.available_themes else "ansi-dark"
         if not self.cfg.get("show_sidebar", True):
@@ -1162,7 +1168,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
             else:
                 prevForGroup = prev
             if not newDone and m.id > newAfter and m.author.id != self.meId:
-                widgets.append(Static(Text("─── new messages ───", justify="right"), classes="newsep"))
+                widgets.append(Static(fmt.newSeparator(), classes="newsep"))
                 newDone = True
                 prevForGroup = None
             widgets.append(MessageView(m, grouped=canGroup(prevForGroup, m)))
@@ -1499,7 +1505,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         self._readyOnce = True
         from .update import checkInBackground
 
-        checkInBackground(lambda msg: self.call_from_thread(self.notify, msg, timeout=10, markup=False))
+        checkInBackground(lambda msg: self.call_from_thread(self.updateAvailable, msg))
         if self.plugin("rich_presence"):
             self.startRpc()
         self.buildSidebar()
@@ -1508,7 +1514,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         inp.disabled = False
         inp.placeholder = "Pick a chat: Ctrl+K to jump, F1 for keys"
         self.query_one("#title", Static).update(
-            Text(f"uncord  ·  {self.client.user.name}  ·  Ctrl+K jump  ·  F1 keys", style="bold")
+            Text(f"Connected as {self.client.user.name}  ·  Ctrl+K jump  ·  F1 keys", style="bold")
         )
         if not vmod.load_opus():
             log.warning("libopus not found; voice disabled")

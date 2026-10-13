@@ -112,9 +112,12 @@ class SidePanel(Static):
 
 
 class TitleBar(Static):
+    #menu icon then the chat title on the left, version and update notice on the right
 
     def __init__(self, content="", **kw) -> None:
-        super().__init__(self._withMenu(content), **kw)
+        self.left = self._withMenu(content)
+        self.right = Text()
+        super().__init__(self.left, **kw)
 
     @staticmethod
     def _withMenu(content) -> Text:
@@ -123,7 +126,21 @@ class TitleBar(Static):
         return t
 
     def update(self, content="", **kw) -> None:
-        super().update(self._withMenu(content), **kw)
+        self.left = self._withMenu(content)
+        super().update(self.left, **kw)
+
+    def setRight(self, text: Text) -> None:
+        self.right = text
+        self.refresh()
+
+    def render(self) -> Text:
+        width = self.content_size.width
+        left = self.left.copy()
+        left.truncate(max(0, width - self.right.cell_len - 2), overflow="ellipsis")
+        gap = width - left.cell_len - self.right.cell_len
+        if gap < 1 or not self.right:
+            return left
+        return left + Text(" " * gap) + self.right
 
     def on_click(self, event) -> None:
         if event.x <= 2:  #padding plus the menu icon

@@ -696,5 +696,14 @@ def ago(when) -> str:
     return "just now"
 
 
-def dateSeparator(d) -> Text:
-    return Text(f"── {d.strftime('%A %d %B %Y')} ──", style="bright_black", justify="center")
+#full width rule with the date in the middle like discord
+def dateSeparator(d):
+    from rich.rule import Rule
+
+    return Rule(d.strftime("%A %d %B %Y"), style="bright_black", characters="─")
+
+
+def newSeparator():
+    from rich.rule import Rule
+
+    return Rule(Text(" new ", style="bold white on red"), style="red", align="right", characters="─")
