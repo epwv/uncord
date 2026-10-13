@@ -109,6 +109,53 @@ class PickersMixin:
             )
         return out + self.people()
 
+    #f4 inbox unread channels and your recent mentions in one list
+    @work(exclusive=True, group="inbox")
+    async def action_inbox(self) -> None:
+        if not self.client.is_ready():
+            return
+        unread = self.orderedChannels(unreadOnly=True)
+        unread = [c for c in unread if self.current is None or c.id != self.current.id]
+        try:
+            mentions = [m async for m in self.client.recent_mentions(limit=25)]
+        except Exception:
+            log.debug("recent mentions", exc_info=True)
+            mentions = []
+        entries = []
+        if unread:
+            entries.append((Text("✓ Mark all of these as read", style="green"), "mark all read", "__readall"))
+        entries.append((Text(f"UNREAD — {len(unread)}", style="bold bright_black"), "", None))
+        for c in unread:
+            label = Text(channelIcon(c), style="bright_black") + Text(channelName(c), style="bold")
+            if not isinstance(c, PRIVATE):
+                label.append(f"  {c.guild.name}", style="bright_black")
+            n = self.mention_count(c)
+            if n:
+                label.append(f" {n}", style="bold white on red")
+            entries.append((label, f"{channelName(c)} {getattr(getattr(c, 'guild', None), 'name', '')}".lower(), c))
+        entries.append((Text(f"MENTIONS — {len(mentions)}", style="bold bright_black"), "", None))
+        for m in mentions:
+            where = channelName(m.channel) if isinstance(m.channel, PRIVATE) else (
+                f"#{channelName(m.channel)} · {m.guild.name}" if m.guild else channelName(m.channel))
+            label = Text(f"{ago(m.created_at)}  ", style="bright_black") + Text(m.author.display_name, style="bold")
+            label.append(f"  {where}", style="bright_black")
+            label.append(f"\n   {snippet(m.clean_content or '[attachment]', 90)}")
+            entries.append((label, f"{m.author.display_name} {m.content}".lower(), m))
+
+        def picked(v) -> None:
+            if v == "__readall":
+                for c in unread:
+                    self.clearUnread(c)
+                    self.scheduleAck(c, 0)
+                    self.relabel(c)
+                self.notify(f"Marked {len(unread)} chat{'s' if len(unread) != 1 else ''} as read.")
+            elif isinstance(v, discord.Message):
+                self.jumpTo(v)
+            elif v is not None:
+                self.openChannel(v)
+
+        self.push_screen(Picker(entries, placeholder="Filter…", title="Inbox"), picked)
+
     def action_switcher(self) -> None:
         if not self.client.is_ready():
             return

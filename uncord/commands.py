@@ -48,7 +48,7 @@ class CommandsMixin:
   Ctrl+F search messages (from:name in:channel has:link/image/file)
 
 [b]You[/b]
-  Ctrl+S status (online/idle/dnd/invisible, custom status)   Ctrl+U friends
+  Ctrl+S status (online/idle/dnd/invisible, custom status)   Ctrl+U friends   F4 inbox (unreads and mentions)
 
 [b]Voice[/b]
   Select a 🔊 channel to join · F5 call this DM/group or answer · F6 mute · F7 deafen · F8 leave · F9 voice settings
@@ -144,6 +144,8 @@ class CommandsMixin:
                 self.notify(self.share.statsText() if self.share else "Not sharing.", markup=False, timeout=8)
             else:
                 self.action_share()
+        elif name in ("inbox", "mentions", "unread"):
+            self.action_inbox()
         elif name in ("plugins", "plugin", "tweaks"):
             self.action_plugins()
         elif name in ("camera", "cam", "video"):
