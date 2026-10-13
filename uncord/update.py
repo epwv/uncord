@@ -62,8 +62,9 @@ def update() -> int:
     if before == after:
         ahead = _git(src, "rev-list", "--count", "@{u}..HEAD").stdout.strip()
         if ahead.isdigit() and int(ahead):
-            print(f"nothing new on github, and your copy has {ahead} commit{'s' if ahead != '1' else ''} "
-                  "that aren't there yet (git push to share them)")
+            one = ahead == "1"
+            print(f"nothing new on github, and your copy has {ahead} commit{'' if one else 's'} "
+                  f"that {'isn' if one else 'aren'}'t there yet (git push to share {'it' if one else 'them'})")
         else:
             print(f"already up to date ({after})")
         return 0
