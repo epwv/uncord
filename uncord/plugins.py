@@ -16,6 +16,7 @@ PLUGINS = (
     ("no_reply_mention", "NoReplyMention", "replies don't ping the person you reply to", False),
     ("silent_typing", "SilentTyping", "don't show others that you're typing", False),
     ("relationship_notifier", "RelationshipNotifier", "tell you when someone unfriends you or sends a request", True),
+    ("rich_presence", "RichPresence", "games and apps on this pc set your activity like the desktop app (restart after)", True),
 )
 DEFAULTS = {key: on for key, _n, _d, on in PLUGINS}
 

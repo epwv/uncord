@@ -588,7 +588,11 @@ class PickersMixin:
         if status is not None:
             kw["status"] = discord.Status(status)
         if custom is not None:
-            kw["activity"] = discord.CustomActivity(name=custom) if custom else None
+            #keep whatever game rich presence is showing next to the custom status
+            acts = [discord.CustomActivity(name=custom)] if custom else []
+            if self.rpcActivity is not None:
+                acts.append(self.rpcActivity)
+            kw["activities"] = acts
         try:
             await self.client.change_presence(**kw)
         except Exception as e:

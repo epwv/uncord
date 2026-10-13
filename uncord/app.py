@@ -219,6 +219,8 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         self.typing: Dict[int, float] = {}
         self.typingElsewhere: Dict[int, float] = {}  #channel id to when someone last typed there
         self.callStarted = 0.0
+        self.rpc = None
+        self.rpcActivity = None
         self.typingNames: Dict[int, str] = {}
         self.replyTo: Optional[discord.Message] = None
         self.editing: Optional[discord.Message] = None
@@ -1466,6 +1468,8 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         from .update import checkInBackground
 
         checkInBackground(lambda msg: self.call_from_thread(self.notify, msg, timeout=10, markup=False))
+        if self.plugin("rich_presence"):
+            self.startRpc()
         self.buildSidebar()
         self.updateMePanel()
         inp = self.query_one("#input", ChatInput)
@@ -1776,7 +1780,33 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         except Exception as e:
             self.notify(f"Decline failed: {e}", severity="error", markup=False)
 
+    @work(group="rpc")
+    async def startRpc(self) -> None:
+        from .rpc import RpcServer
+
+        self.rpc = RpcServer(self.client, self.setRpcActivity)
+        why = await self.rpc.start()
+        if why == "busy":
+            self.notify("Another Discord app is running, so games will show their status there, not in uncord.",
+                        timeout=8, markup=False)
+
+    def setRpcActivity(self, act) -> None:
+        old, self.rpcActivity = self.rpcActivity, act
+        if act is not None and (old is None or old.name != act.name):
+            self.notify(f"🎮 Now showing: {act.name}", timeout=4, markup=False)
+        asyncio.create_task(self._pushPresence())
+
+    async def _pushPresence(self) -> None:
+        custom = next((a for a in self.client.activities if isinstance(a, discord.CustomActivity)), None)
+        acts = ([custom] if custom else []) + ([self.rpcActivity] if self.rpcActivity is not None else [])
+        try:
+            await self.client.change_presence(activities=acts)
+        except Exception:
+            log.debug("rich presence update", exc_info=True)
+
     async def action_quit(self) -> None:
+        if self.rpc is not None:
+            self.rpc.stop()
         if self.vc is not None:
             await self._leave()
         try:
