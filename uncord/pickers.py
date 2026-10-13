@@ -348,25 +348,6 @@ class PickersMixin:
             return
         self.openChannel(thread)
 
-    def channelMenu(self, ch) -> None:
-        entries = [(Text("🧵 Threads"), "threads", "threads")] if isinstance(ch, discord.TextChannel) else []
-        entries += [
-            (Text("✓ Mark as read"), "read", "read"),
-            (Text("Copy channel ID", style="bright_black"), "copy", "copy"),
-        ]
-
-        def done(act) -> None:
-            if act == "threads":
-                self.threadPicker(ch)
-            elif act == "read":
-                self.clearUnread(ch)
-                self.scheduleAck(ch, 0)
-                self.relabel(ch)
-            elif act == "copy":
-                self.copyText(str(ch.id))
-
-        self.push_screen(Picker(entries, placeholder=f"#{ch.name}"), done)
-
     @work(group="dm")
     async def openDm(self, user) -> None:
         if user is None or user.id == self.meId:

@@ -55,6 +55,7 @@ from .messages import MessageList, MessageView, canGroup
 from .msgactions import MessageActionsMixin
 from .panels import ChatInput, ComposerButton, MemberList, Sidebar, SidePanel, TitleBar, VoiceBar
 from .pickers import PickersMixin
+from .servers import ServersMixin
 from .screens import Picker
 
 log = logging.getLogger("uncord")
@@ -91,7 +92,7 @@ _MessagePump._dispatch_message = _safeDispatch
 #app
 
 
-class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, CallsMixin, App):
+class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, CallsMixin, App):
     TITLE = "uncord"
     ENABLE_COMMAND_PALETTE = False
     CSS = """
@@ -714,24 +715,6 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         self.populateGuild(node, g)
         node.expand()
         return node
-
-    def guildMenu(self, g) -> None:
-        entries = [
-            (Text("✓ Mark server as read"), "read", "read"),
-            (Text("Copy server ID", style="bright_black"), "copy", "copy"),
-        ]
-
-        def done(act) -> None:
-            if act == "read":
-                for c in g.channels:
-                    if hasattr(c, "read_state") and self.unreadCount(c):
-                        self.clearUnread(c)
-                        self.scheduleAck(c, 0)
-                        self.relabel(c)
-            elif act == "copy":
-                self.copyText(str(g.id))
-
-        self.push_screen(Picker(entries, placeholder=g.name), done)
 
     def selectGuild(self, g) -> None:
         node = self.openGuildNode(g)
