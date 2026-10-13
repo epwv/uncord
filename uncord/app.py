@@ -107,7 +107,7 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
     #me.incall { height: 6; }
     #main { width: 1fr; }
     #title { height: 1; padding: 0 1; }
-    #messages { height: 1fr; padding: 0 1 0 0; scrollbar-size-vertical: 1; }
+    #messages { height: 1fr; padding: 0 1 0 0; scrollbar-size-vertical: 1; align-vertical: bottom; }
     #messages.loading { display: none; }
     #loading { height: 1fr; content-align: center middle; color: $text-muted; display: none; }
     #loading.on { display: block; }

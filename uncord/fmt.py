@@ -9,6 +9,9 @@ from urllib.parse import urlsplit
 
 import discord
 from rich.color import Color, ColorSystem
+from rich.console import Group
+from rich.measure import Measurement
+from rich.segment import Segment
 from rich.style import Style
 from rich.table import Table
 from rich.text import Text
@@ -449,6 +452,71 @@ def markdown(text: str, ctx: MdContext) -> Text:
     return out
 
 
+#embeds
+
+class Bar:
+    #draws a coloured bar down the left of whatever is inside like discord embeds and quotes
+    def __init__(self, inner, colour: Optional[str]) -> None:
+        self.inner = inner
+        self.style = Style(color=colour or "bright_black")
+
+    def __rich_console__(self, console, options):
+        width = max(1, options.max_width - 2)
+        lines = console.render_lines(self.inner, options.update(width=width, height=None), pad=False)
+        for line in lines:
+            yield Segment("▎ ", self.style)
+            yield from line
+            yield Segment.line()
+
+    def __rich_measure__(self, console, options):
+        return Measurement(3, options.max_width)
+
+
+def embedBlock(e, ctx: "MdContext", previewed=frozenset(), hideDesc: bool = False):
+    rows = []
+    provider = getattr(getattr(e, "provider", None), "name", None)
+    if provider:
+        rows.append(Text(provider, style="bright_black"))
+    author = getattr(e, "author", None)
+    if author is not None and getattr(author, "name", None):
+        rows.append(link(author.name, author.url, Style(bold=True)) if getattr(author, "url", None)
+                    else Text(author.name, style="bold"))
+    if e.title:
+        rows.append(link(e.title, e.url, Style(bold=True, color="blue")) if e.url
+                    else Text(e.title, style="bold"))
+    if e.description and not hideDesc:
+        desc = e.description if len(e.description) <= 1500 else e.description[:1499] + "…"
+        rows.append(markdown(desc, ctx))
+    fields = list(getattr(e, "fields", []) or [])[:25]
+    i = 0
+    #inline fields sit up to three across like discord
+    while i < len(fields):
+        f = fields[i]
+        row = [f]
+        if getattr(f, "inline", False):
+            while len(row) < 3 and i + len(row) < len(fields) and getattr(fields[i + len(row)], "inline", False):
+                row.append(fields[i + len(row)])
+        grid = Table.grid(padding=(0, 3), expand=False)
+        for _ in row:
+            grid.add_column(overflow="fold", max_width=40 if len(row) > 1 else None)
+        grid.add_row(*[Text(str(x.name), style="bold") + Text("\n") + mdInline(str(x.value)[:1024], ctx)
+                       for x in row])
+        rows.append(grid)
+        i += len(row)
+    if e.image and e.image.url and e.image.url not in previewed and not (e.thumbnail and e.thumbnail.url in previewed):
+        rows.append(link("🖼 image", e.image.url))
+    foot = []
+    if e.footer and e.footer.text:
+        foot.append(e.footer.text)
+    if e.timestamp:
+        foot.append(e.timestamp.astimezone().strftime("%d %b %Y %H:%M"))
+    if foot:
+        rows.append(Text(" · ".join(foot), style="bright_black"))
+    if not rows:
+        return None
+    return Bar(Group(*rows), termColour(e.colour))
+
+
 #messages
 
 
@@ -644,32 +712,10 @@ def renderMessage(
             continue
         if e.url and e.url in m.content and not e.title and not e.description:
             continue
-        provider = getattr(getattr(e, "provider", None), "name", None)
-        authorName = getattr(getattr(e, "author", None), "name", None)
-        head = [x for x in (provider, authorName) if x]
-        bar = Text("▎", style=termColour(e.colour) or "bright_black")
-        if head:
-            extras.append(bar + Text(" " + " · ".join(head), style="bright_black"))
-        if e.title:
-            title = Text(" ") + (
-                link(snippet(e.title, 100), e.url, Style(bold=True, color="blue"))
-                if e.url
-                else Text(snippet(e.title, 100), style="bold")
-            )
-            extras.append(bar + title)
-        if e.description and not (
-            e.url and e.url in m.content and e.type in ("video", "link", "article", "gifv", "image")
-        ):
-            desc = markdown(e.description if len(e.description) < 500 else e.description[:499] + "…", ctx)
-            extras.append(bar + Text(" ") + desc)
-        for f in getattr(e, "fields", [])[:10]:
-            extras.append(
-                bar + Text(f" {f.name}: ", style="bold") + mdInline(snippet(str(f.value), 150), ctx)
-            )
-        if e.image and e.image.url and not e.title and e.image.url not in previewed:
-            extras.append(bar + Text(" ") + link("image", e.image.url))
-        if e.footer and e.footer.text:
-            extras.append(bar + Text(" " + snippet(e.footer.text, 100), style="bright_black"))
+        block = embedBlock(e, ctx, previewed, hideDesc=bool(
+            e.url and e.url in m.content and e.type in ("video", "gifv", "image")))
+        if block is not None:
+            extras.append(block)
     if getattr(m, "poll", None) is not None:
         p = m.poll
         extras.append(Text(f"📊 {getattr(p.question, 'text', p.question)}", style="bold"))
@@ -696,12 +742,23 @@ def renderMessage(
     if thread is not None:
         extras.append(Text(f"🧵 thread: {thread.name}", style="bright_black"))
 
+    #text extras join the body, embeds are their own blocks in between
+    parts = [body]
     for x in extras:
-        if body.plain.strip():
-            body.append("\n")
-        body.append_text(x)
-    body.rstrip()
-    grid.add_row(ts, body)
+        if isinstance(x, Text):
+            last = parts[-1]
+            if not isinstance(last, Text):
+                parts.append(x)
+                continue
+            if last.plain.strip():
+                last.append("\n")
+            last.append_text(x)
+        else:
+            parts.append(x)
+    for x in parts:
+        if isinstance(x, Text):
+            x.rstrip()
+    grid.add_row(ts, parts[0] if len(parts) == 1 else Group(*parts))
     return grid
 
 
