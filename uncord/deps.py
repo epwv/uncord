@@ -103,14 +103,13 @@ def doctor() -> int:
         clip or "not found",
         "image paste needs wl-clipboard (wayland) or xclip (x11)",
     )
-    row(
-        bool(shutil.which("notify-send")),
-        "notify-send",
-        shutil.which("notify-send") or "not found",
-        "desktop notifications (libnotify)",
-    )
+    from .notify import available
+
+    note = available()
+    row(bool(note), "notifications", note or "not found", "needs a notification daemon (mako, dunst, swaync…)")
     term = os.environ.get("TERM_PROGRAM") or os.environ.get("TERM", "?")
     print(
-        f"\nterminal: {term}  (images need sixel: foot, wezterm, konsole, contour, xterm -ti vt340, mlterm)"
+        f"\nterminal: {term}  (images: kitty or ghostty with kitty graphics, foot wezterm konsole contour"
+        " mlterm or xterm -ti vt340 with sixel)"
     )
     return 0 if FFMPEG and OPUS else 1

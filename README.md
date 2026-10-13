@@ -52,7 +52,7 @@ Most terminal Discord clients stop at text. uncord tries to be the whole app:
   - `chafa`: faster, nicer images
   - `mpv`: pop-out videos and streams
   - `wl-clipboard` or `xclip`: pasting images
-  - `libnotify`: desktop notifications
+  - a notification daemon (mako, dunst, swaync, or your desktop's own) for desktop notifications
   - `gpu-screen-recorder`: sharing your screen
 
 The install script below sorts all of this out for you on most distros.
@@ -127,6 +127,7 @@ Press **F1** inside uncord for every key. These are the ones you'll use most:
 | Ctrl+K | jump to any chat, person or server |
 | Ctrl+B | show or hide the sidebar (or click ☰ in the title bar) |
 | F2 | show or hide the members list |
+| F3 | settings (appearance, line spacing, notifications, plugins…) |
 | F4 | inbox: unread chats and mentions |
 | Tab / Esc | move between the message box and the sidebar |
 | Alt+↑ / Alt+↓ | previous / next channel |
@@ -165,7 +166,7 @@ Click a voice channel to join it, or press F5 in a DM to call. The bar above the
 
 ## Plugins
 
-Type `/plugins` to switch extras on and off, Vencord style:
+Open settings (F3) → Plugins, or type `/plugins`, to switch extras on and off, Vencord style:
 
 | Plugin | What it does | Default |
 | --- | --- | --- |

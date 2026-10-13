@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import discord
 from rich.text import Text
+from textual import work
 from textual.binding import Binding
+from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Input, Static, Tree
 
 from .fmt import isForum, isVoice
@@ -87,6 +89,75 @@ class MemberList(Static):
         if "muser" in meta:
             event.stop()
             self.app.userMenu(meta["muser"])
+
+
+#discord style column of server icons down the far left
+class RailIcon(Vertical):
+    DEFAULT_CSS = """
+    RailIcon { height: 2; width: 5; margin-bottom: 1; border-left: blank; }
+    RailIcon.here { border-left: thick $accent; }
+    RailIcon.unread { border-left: thick $foreground; }
+    RailIcon.mentioned { border-left: thick $error; }
+    RailIcon .railtxt { width: 4; height: 2; content-align: center middle; background: $boost; text-style: bold; }
+    """
+
+    def __init__(self, guild=None, **kw) -> None:
+        super().__init__(**kw)
+        self.guild = guild
+
+    def compose(self):
+        g = self.guild
+        if g is None:
+            yield Static(Text("✉"), classes="railtxt")
+        else:
+            initials = "".join(w[0] for w in g.name.split()[:2]).upper() or "?"
+            yield Static(Text(initials[:2]), classes="railtxt")
+
+    def on_mount(self) -> None:
+        if self.guild is not None and self.guild.icon is not None:
+            self.loadIcon()
+
+    @work(exclusive=True)
+    async def loadIcon(self) -> None:
+        from . import media, sixelview
+
+        if not sixelview.GRAPHICS:
+            return
+        url = self.guild.icon.with_size(64).with_static_format("png").url
+        frames = await self.app.frameCache.frames(media.MediaItem(self.guild.name, url, url, "image"), animate=False)
+        if not frames or not self.is_attached:
+            return
+        await self.remove_children()
+        w = sixelview.mediaWidget(frames, 4, 2, classes="railimg")
+        w.styles.width, w.styles.height = 4, 2
+        await self.mount(w)
+
+    def on_click(self, event) -> None:
+        event.stop()
+        if self.guild is None:
+            self.app.gotoDms()
+        elif getattr(event, "button", 1) == 3:
+            self.app.guildMenu(self.guild)
+        else:
+            self.app.selectGuild(self.guild)
+
+
+class ServerRail(VerticalScroll):
+    DEFAULT_CSS = "ServerRail { width: 6; padding: 1 0 0 0; scrollbar-size-vertical: 0; }"
+
+    def rebuild(self, guilds) -> None:
+        self.remove_children()
+        self.mount_all([RailIcon(None, id="rail-dms")] + [RailIcon(g, id=f"rail-{g.id}") for g in guilds])
+
+    def mark(self, guildId, unread: bool, here: bool, mentions: int) -> None:
+        try:
+            icon = self.query_one(f"#rail-{guildId}", RailIcon)
+        except Exception:
+            return
+        icon.set_class(here, "here")
+        icon.set_class(unread and not here and not mentions, "unread")
+        icon.set_class(bool(mentions) and not here, "mentioned")
+        icon.tooltip = f"{icon.guild.name}" + (f" · {mentions} mention{'s' if mentions != 1 else ''}" if mentions else "")
 
 
 class SidePanel(Static):

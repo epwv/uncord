@@ -92,6 +92,7 @@ class SettingsScreen(ModalScreen):
         yield self.switch("inline_media", "Show images and GIFs in chat", cfg.get("inline_media", True))
         yield self.switch("emoji_images", "Draw custom emoji as images", cfg.get("emoji_images", True))
         yield self.head("Layout")
+        yield self.switch("server_icons", "Server icons column", cfg.get("server_icons", True))
         yield self.switch("show_sidebar", "Server and DM list (Ctrl+B)", cfg.get("show_sidebar", True))
         yield self.switch("show_members", "Members list (F2)", bool(cfg.get("show_members", False)))
         yield self.head("Streams and cameras")
@@ -192,6 +193,9 @@ class SettingsScreen(ModalScreen):
         if key == "show_sidebar":
             if app.cfg.get("show_sidebar", True) != ev.value:
                 app.action_toggle_sidebar()
+            return
+        if key == "server_icons":
+            app.toggleRail(ev.value)
             return
         if key == "show_members":
             if bool(app.cfg.get("show_members", False)) != ev.value:
