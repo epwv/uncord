@@ -8,7 +8,7 @@ from rich.text import Text
 
 from . import filepick
 from . import voice as vmod
-from .fmt import PRIVATE, activityText, nameColour, snippet, statusDot, userStatus, nameBadges
+from .fmt import PRIVATE, activityText, nameColour, snippet, statusDot, userStatus, nameBadges, platformIcons
 from .screens import Picker, TextScreen
 
 from .calls import SHARE_QUALITIES
@@ -363,6 +363,7 @@ class CommandsMixin:
                 statusDot(u)
                 + Text(u.display_name, style=nameColour(u))
                 + nameBadges(u)
+                + platformIcons(u)
                 + Text(f"  @{u.name}", style="bright_black")
             )
             act = activityText(u)

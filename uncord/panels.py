@@ -76,6 +76,19 @@ class ChatInput(Input):
             self.app.query_one("#sidebar").focus()
 
 
+#the members list on the right click a name for the user menu
+class MemberList(Static):
+
+    def on_click(self, event) -> None:
+        try:
+            meta = self.screen.get_style_at(event.screen_x, event.screen_y).meta or {}
+        except Exception:
+            meta = {}
+        if "muser" in meta:
+            event.stop()
+            self.app.userMenu(meta["muser"])
+
+
 class SidePanel(Static):
 
     def on_click(self, event) -> None:

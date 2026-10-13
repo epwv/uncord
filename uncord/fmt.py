@@ -152,6 +152,29 @@ def statusDot(uOrStatus) -> Text:
     return Text(ch + " ", style=colour)
 
 
+PLATFORMS = (("desktop_status", "🖥", "desktop"), ("mobile_status", "📱", "phone"), ("web_status", "🌐", "web"),
+             ("embedded_status", "🎮", "console"))
+
+
+#which devices someone is on, members carry it and friends carry it on their relationship
+def platforms(u) -> list:
+    src = u if hasattr(u, "mobile_status") else getattr(u, "relationship", None)
+    out = []
+    for attr, icon, name in PLATFORMS:
+        try:
+            st = str(getattr(src, attr))
+        except Exception:
+            continue
+        if st not in ("offline", "None", "invisible"):
+            out.append((icon, name))
+    return out
+
+
+def platformIcons(u) -> Text:
+    found = platforms(u)
+    return Text(" " + "".join(icon for icon, _n in found), style="bright_black") if found else Text()
+
+
 def activityText(u) -> Optional[str]:
     acts = getattr(u, "activities", None)
     if acts is None:
@@ -366,8 +389,27 @@ def mdLines(text: str, ctx: MdContext) -> Text:
             out.append(m.group(1) + "• ")
             out.append_text(mdInline(m.group(2), ctx))
             continue
+        m = re.match(r"(\s*)(\d{1,3})\. (.+)", line)
+        if m:
+            out.append(f"{m.group(1)}{m.group(2)}. ", style="bright_black")
+            out.append_text(mdInline(m.group(3), ctx))
+            continue
         out.append_text(mdInline(line, ctx))
     return out
+
+
+#code blocks get syntax colours from pygments in the terminals own palette
+def highlight(code: str, lang: str) -> Text:
+    if lang:
+        try:
+            from rich.syntax import Syntax
+
+            t = Syntax(code, lang, theme="ansi_dark", background_color="default").highlight(code)
+            t.rstrip()
+            return t
+        except Exception:
+            pass
+    return Text(code, style=CODE)
 
 
 def markdown(text: str, ctx: MdContext) -> Text:
@@ -379,11 +421,14 @@ def markdown(text: str, ctx: MdContext) -> Text:
             out.append_text(mdLines(before.strip("\n"), ctx))
             out.append("\n")
         code = mt.group(2).strip("\n")
-        for j, cl in enumerate(code.split("\n")):
+        lang = (mt.group(1) or "").lower()
+        if lang:
+            out.append(f"┏ {lang}\n", style="bright_black")
+        for j, cl in enumerate(highlight(code, lang).split("\n")):
             if j:
                 out.append("\n")
             out.append("┃ ", style="bright_black")
-            out.append(cl, style=CODE)
+            out.append_text(cl)
         out.append("\n")
         pos = mt.end()
     rest = text[pos:]

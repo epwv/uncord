@@ -12,11 +12,12 @@ import time
 from typing import Dict, List, Optional
 
 import discord
+from rich.style import Style
 from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Footer, Input, Static, Tree
 from textual.widgets.tree import TreeNode
 
@@ -27,6 +28,10 @@ from . import voice as vmod
 from .config import Config
 from .fmt import (
     PRIVATE,
+    activityText,
+    nameBadges,
+    platformIcons,
+    userStatus,
     canRead,
     channelIcon,
     channelName,
@@ -47,7 +52,7 @@ from .client import UncordClient
 from .commands import CommandsMixin
 from .messages import MessageList, MessageView, canGroup
 from .msgactions import MessageActionsMixin
-from .panels import ChatInput, ComposerButton, Sidebar, SidePanel, TitleBar, VoiceBar
+from .panels import ChatInput, ComposerButton, MemberList, Sidebar, SidePanel, TitleBar, VoiceBar
 from .pickers import PickersMixin
 from .screens import Picker
 
@@ -93,6 +98,8 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
     #body { height: 1fr; }
     #side { width: 30; border-right: vkey $foreground 25%; }
     #side.hidden { display: none; }
+    #memberpane { width: 32; border-left: vkey $foreground 25%; padding: 0 1; scrollbar-size-vertical: 1; }
+    #memberpane.hidden { display: none; }
     #sidebar { height: 1fr; padding: 0; scrollbar-size-vertical: 1; }
     #me { height: 3; padding: 0 1; border-top: hkey $foreground 25%; }
     #me.incall { height: 6; }
@@ -181,6 +188,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         Binding("ctrl+r", "record", "Voice msg", show=False, priority=True),
         Binding("ctrl+s", "status", "Status", show=False, priority=True),
         Binding("ctrl+b", "toggle_sidebar", "Sidebar", priority=True),
+        Binding("f2", "toggle_members", "Members", show=False, priority=True),
         Binding("f7", "toggle_deafen", "Deafen", show=False),
         Binding("f10", "share", "Share screen", show=False, priority=True),
         Binding("f11", "watch", "Watch stream", show=False, priority=True),
@@ -278,6 +286,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         "record",
         "status",
         "toggle_sidebar",
+        "toggle_members",
         "step",
         "step_unread",
         "history",
@@ -351,6 +360,8 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
                     )
                     yield ComposerButton("GIF", "gif", "Send a GIF (Ctrl+G)")
                     yield ComposerButton("☺", "emoji_insert", "Emoji (Ctrl+E)")
+            with VerticalScroll(id="memberpane", classes="" if self.cfg.get("show_members") else "hidden"):
+                yield MemberList("", id="members")
         footer = Footer(show_command_palette=False)
         footer.compact = True
         yield footer
@@ -866,6 +877,66 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         self.cfg["show_sidebar"] = not side.has_class("hidden")
         self.cfg.save()
 
+    def action_toggle_members(self) -> None:
+        pane = self.query_one("#memberpane")
+        pane.toggle_class("hidden")
+        self.cfg["show_members"] = not pane.has_class("hidden")
+        self.cfg.save()
+        self.refreshMembers()
+
+    def channelMembers(self, ch) -> list:
+        me = self.client.user
+        if isinstance(ch, discord.DMChannel):
+            return [u for u in (ch.recipient, me) if u is not None]
+        if isinstance(ch, discord.GroupChannel):
+            return list(ch.recipients) + ([me] if me else [])
+        target = ch.parent if isinstance(ch, discord.Thread) and ch.parent is not None else ch
+        try:
+            return list(target.members)
+        except Exception:
+            return []
+
+    #online first like discord with status dots badges and what theyre doing
+    def refreshMembers(self) -> None:
+        self._membersTimer = None
+        try:
+            pane = self.query_one("#memberpane")
+        except Exception:
+            return
+        if pane.has_class("hidden") or self.current is None:
+            return
+        members = self.channelMembers(self.current)
+        online = sorted((u for u in members if userStatus(u) != "offline"), key=lambda u: u.display_name.lower())
+        offline = sorted((u for u in members if userStatus(u) == "offline"), key=lambda u: u.display_name.lower())
+        t = Text()
+        for title, group in (("ONLINE", online), ("OFFLINE", offline)):
+            if not group:
+                continue
+            if t:
+                t.append("\n")
+            t.append(f"{title} — {len(group)}\n", style="bold bright_black")
+            for u in group[:150]:
+                meta = Style(meta={"muser": u.id})
+                t.append_text(statusDot(u))
+                t.append(snippet(u.display_name, 18),
+                         style=Style(color=nameColour(u), dim=title == "OFFLINE") + meta)
+                t.append_text(nameBadges(u))
+                t.append_text(platformIcons(u))
+                t.append("\n")
+                act = activityText(u)
+                if act and title == "ONLINE":
+                    t.append(f"  {snippet(act, 26)}\n", style=Style(color="bright_black", italic=True) + meta)
+            if len(group) > 150:
+                t.append(f"  … {len(group) - 150} more\n", style="bright_black")
+        if not members:
+            t.append("Discord hasn't sent the member list for this channel yet.", style="bright_black")
+        self.query_one("#members", MemberList).update(t)
+
+    def membersLater(self) -> None:
+        #presence updates come in bursts so redraw at most every 2s
+        if getattr(self, "_membersTimer", None) is None and not self.query_one("#memberpane").has_class("hidden"):
+            self._membersTimer = self.set_timer(2.0, self.refreshMembers)
+
     def orderedChannels(self, unreadOnly: bool = False) -> list:
         out = list(self.privateChannelsSorted())
         for _folder, gs in self.guildLayout():
@@ -958,6 +1029,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         inp.focus()
         self.reveal(ch)
         self.loadHistory(ch, around)
+        self.refreshMembers()
 
     @staticmethod
     def _sig(msgs) -> list:
@@ -1551,6 +1623,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         dm = getattr(user, "dm_channel", None)
         if dm is not None and dm.id in self.nodes:
             self.relabel(dm)
+        self.membersLater()
 
     def sfx(self, kind: str) -> None:
         if self.cfg.get("sfx", True):

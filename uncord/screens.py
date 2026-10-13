@@ -16,8 +16,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
-from .fmt import (PRIVATE, STATUS_NAME, activityText, humanSize, nameBadges, nameColour, snippet, statusDot,
-                  userStatus)
+from .fmt import (PRIVATE, STATUS_NAME, activityText, humanSize, nameBadges, nameColour, platforms, snippet,
+                  statusDot, userStatus)
 
 log = logging.getLogger("uncord")
 
@@ -355,6 +355,9 @@ class ProfileScreen(ModalScreen):
         t.append("\n")
         t.append_text(statusDot(st))
         t.append(STATUS_NAME.get(st, st))
+        devices = [name for _i, name in platforms(u)]
+        if devices:
+            t.append(" · on " + (" and ".join(devices) if len(devices) < 3 else ", ".join(devices)), style="bright_black")
         act = activityText(u)
         if act:
             t.append(f"  ·  {act}", style="italic")

@@ -12,7 +12,7 @@ from rich.text import Text
 from textual import work
 
 from .fmt import (PRIVATE, STATUS_NAME, activityText, ago, canRead, channelIcon, channelName, isForum,
-                  isMuted, isVoice, nameBadges, snippet, statusDot, userStatus)
+                  isMuted, isVoice, nameBadges, platformIcons, snippet, statusDot, userStatus)
 from .screens import MessageSearch, Picker, Prompt
 
 from .panels import SidePanel
@@ -54,7 +54,8 @@ class PickersMixin:
             if u.id in seen or u.id == me or getattr(u, "system", False):
                 continue
             seen.add(u.id)
-            label = statusDot(u) + Text(u.display_name) + nameBadges(u) + Text(f"  @{u.name}", style="bright_black")
+            label = (statusDot(u) + Text(u.display_name) + nameBadges(u) + platformIcons(u)
+                     + Text(f"  @{u.name}", style="bright_black"))
             act = activityText(u)
             if act:
                 label.append(f"  {snippet(act, 30)}", style="bright_black italic")
