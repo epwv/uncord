@@ -52,7 +52,7 @@ from .client import UncordClient
 from .commands import CommandsMixin
 from .messages import MessageList, MessageView, canGroup
 from .msgactions import MessageActionsMixin
-from .panels import ChatInput, ComposerButton, MemberList, ServerRail, Sidebar, SidePanel, TitleBar, VoiceBar
+from .panels import ChatInput, ComposerButton, MemberList, Sidebar, SidePanel, TitleBar, VoiceBar
 from .pickers import PickersMixin
 from .servers import ServersMixin
 from .screens import Picker
@@ -99,8 +99,6 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
     #body { height: 1fr; }
     #side { width: 30; border-right: vkey $foreground 25%; }
     #side.hidden { display: none; }
-    #rail { border-right: vkey $foreground 15%; }
-    #rail.hidden { display: none; }
     #memberpane { width: 32; border-left: vkey $foreground 25%; padding: 0 1; scrollbar-size-vertical: 1; }
     #memberpane.hidden { display: none; }
     #sidebar { height: 1fr; padding: 0; scrollbar-size-vertical: 1; }
@@ -347,7 +345,6 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="body"):
-            yield ServerRail(id="rail", classes="" if self.cfg.get("server_icons", True) else "hidden")
             with Vertical(id="side"):
                 tree = Sidebar("uncord", id="sidebar")
                 tree.show_root = False
@@ -650,10 +647,6 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
     #dms then servers one server open at a time
 
     def buildSidebar(self) -> None:
-        rail = self.query_one("#rail", ServerRail)
-        if not rail.has_class("hidden"):
-            rail.rebuild(self.serverOrder())
-            self.call_after_refresh(self.markRail)
         tree = self.query_one("#sidebar", Tree)
         tree.clear()
         self.nodes.clear()
@@ -859,7 +852,6 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
         gnode = self.guildNodes.get(g.id) if g is not None else None
         if gnode is not None:
             gnode.set_label(self.guildLabel(g))
-            self.markRail(g)
             f = gnode.parent
             if f is not None and f.data and f.data[0] == "folder":
                 f.set_label(self.folderLabel(*f.data[1]))
@@ -975,39 +967,6 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
             ev.node.toggle()
         elif kind == "more_dms":
             self.push_screen(Picker(self.dmEntries(), placeholder="All DMs and groups"), self.goTo)
-
-    #server icon column marks where you are unread and mentions
-    def markRail(self, only=None) -> None:
-        try:
-            rail = self.query_one("#rail", ServerRail)
-        except Exception:
-            return
-        if rail.has_class("hidden"):
-            return
-        here = getattr(self.current, "guild", None) if self.current is not None and not isinstance(
-            self.current, PRIVATE) else None
-        for g in [only] if only is not None else self.client.guilds:
-            ment, unread = self.guildStats(g)
-            rail.mark(g.id, bool(unread) and not isMuted(g), here is not None and here.id == g.id, ment)
-
-    def toggleRail(self, on: bool) -> None:
-        rail = self.query_one("#rail", ServerRail)
-        rail.set_class(not on, "hidden")
-        self.cfg["server_icons"] = on
-        self.cfg.save()
-        if on and self._readyOnce:
-            rail.rebuild(self.serverOrder())
-            self.call_after_refresh(self.markRail)
-
-    def gotoDms(self) -> None:
-        last = self.client.get_channel(int(self.cfg.get("home_last") or 0))
-        if last is None:
-            chans = self.privateChannelsSorted()
-            last = chans[0] if chans else None
-        if self.dmRoot is not None:
-            self.dmRoot.expand()
-        if last is not None:
-            self.openChannel(last)
 
     def action_toggle_sidebar(self) -> None:
         side = self.query_one("#side")
@@ -1172,7 +1131,6 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
         self.loadHistory(ch, around)
         self.refreshMembers()
         self.refreshTitleRight()
-        self.markRail()
 
     @staticmethod
     def _sig(msgs) -> list:
