@@ -10,9 +10,24 @@ Come hang out, get help or share ideas in the [uncord Discord server](https://di
 
 > **Heads up:** Discord's terms don't allow third-party clients on user accounts. People use them anyway, but there's always some risk of your account getting flagged. Use it at your own risk.
 
+## Why uncord
+
+Most terminal Discord clients stop at text. uncord tries to be the whole app:
+
+- **Video calls in a terminal.** Turn your webcam on and watch other people's cameras, right in the call.
+- **Screen shares that play in the terminal.** Watch someone's stream inline, or pop it out to mpv. Go live yourself with one key.
+- **Voice that sounds right.** Per-person volume, automatic gain, automatic mic sensitivity and a device picker, like the desktop app.
+- **Voice messages.** Record them and play them back.
+- **Your Discord favourites.** Your favourite GIFs, stickers and recent emoji, with no extra API keys to set up.
+- **It looks like Discord.** Server tags, APP badges, which device people are on, server folders, and a members list.
+- **Encrypted end to end.** Voice, cameras and streams use Discord's DAVE encryption, the same as the official app.
+- **Easy to keep running.** One install script for most distros, `uncord --update` to get the latest, and `uncord --doctor` when something's missing.
+- **Keys you already know.** Ctrl+K to jump, Alt+arrows to move between channels. No modes to learn.
+
 ## What it can do
 
 - **Chat:** servers, DMs and group DMs, replies, edits, reactions, pins, threads and forum posts, search, unread and mention counts.
+- **Looks:** markdown with headings, quotes, lists and syntax-highlighted code blocks; server tags and APP badges next to names; 🖥 📱 🌐 icons for which device people are on; a members list (F2).
 - **Media:** images, GIFs, stickers and custom emoji drawn inline as sixel graphics. Click one to see it full size. Videos open in mpv.
 - **Composer:** `@`, `#` and `:emoji:` autocomplete. You can paste images from the clipboard, upload files with your own file manager, send GIFs from your favourites, and record voice messages.
 - **Voice and video:**
@@ -107,6 +122,7 @@ Press **F1** inside uncord for every key. These are the ones you'll use most:
 | --- | --- |
 | Ctrl+K | jump to any chat, person or server |
 | Ctrl+B | show or hide the sidebar (or click ☰ in the title bar) |
+| F2 | show or hide the members list |
 | Tab / Esc | move between the message box and the sidebar |
 | Alt+↑ / Alt+↓ | previous / next channel |
 | Ctrl+Alt+↑ / ↓ | previous / next server |

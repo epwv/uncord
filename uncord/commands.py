@@ -24,7 +24,7 @@ class CommandsMixin:
   Alt+Shift+↑/↓    previous / next channel with unread messages
   Ctrl+Alt+↑/↓     previous / next server (like Discord)
   Alt+← / Alt+→    back / forward through chats you've visited
-  Tab / Esc        composer ↔ channel list   ·   Ctrl+B hide the left side
+  Tab / Esc        composer ↔ channel list   ·   Ctrl+B hide the left side   ·   F2 members list
   Sidebar: Enter/click a server to open it (jumps to where you left off), one at a time;
     Space folds folders/categories; right-click a server to mark it read.
     Clicking a voice channel joins it without leaving your chat (right-click: text chat)
