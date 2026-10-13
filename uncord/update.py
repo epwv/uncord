@@ -60,7 +60,12 @@ def update() -> int:
         return 1
     after = _git(src, "rev-parse", "--short", "HEAD").stdout.strip()
     if before == after:
-        print(f"already up to date ({after})")
+        ahead = _git(src, "rev-list", "--count", "@{u}..HEAD").stdout.strip()
+        if ahead.isdigit() and int(ahead):
+            print(f"nothing new on github, and your copy has {ahead} commit{'s' if ahead != '1' else ''} "
+                  "that aren't there yet (git push to share them)")
+        else:
+            print(f"already up to date ({after})")
         return 0
     print(_git(src, "log", "--oneline", f"{before}..{after}").stdout.rstrip())
     #a checkout you run from directly only needs the dependencies refreshed
