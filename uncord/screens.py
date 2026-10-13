@@ -342,6 +342,15 @@ class ProfileScreen(ModalScreen):
                 yield Static(self._info(None), id="pf-info")
             yield Static(Text("m message · v view avatar · esc close", style="bright_black"), id="pf-help")
 
+    #uservoiceshow which voice channel theyre in that we can see
+    def _voiceChannel(self, uid: int):
+        for g in self.client.guilds:
+            m = g.get_member(uid)
+            ch = getattr(getattr(m, "voice", None), "channel", None)
+            if ch is not None:
+                return f"{ch.name} ({g.name})"
+        return None
+
     def _info(self, profile) -> Text:
         u = self.user
         t = Text()
@@ -366,6 +375,13 @@ class ProfileScreen(ModalScreen):
             t.append("\n\n" + bio.strip())
         t.append("\n\n")
         t.append(f"Member since {u.created_at.astimezone():%d %b %Y}", style="bright_black")
+        rel = getattr(u, "relationship", None) or getattr(self.client.get_user(u.id), "relationship", None)
+        since = getattr(rel, "since", None)
+        if since is not None and str(getattr(rel, "type", "")).endswith("friend"):
+            t.append(f"\nFriends since {since.astimezone():%d %b %Y}", style="bright_black")
+        where = self._voiceChannel(u.id)
+        if where:
+            t.append(f"\nIn voice: 🔊 {where}", style="green")
         if isinstance(u, discord.Member):
             if u.joined_at:
                 t.append(f"\nJoined {u.guild.name} {u.joined_at.astimezone():%d %b %Y}", style="bright_black")

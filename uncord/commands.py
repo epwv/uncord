@@ -6,7 +6,7 @@ import os
 import discord
 from rich.text import Text
 
-from . import filepick
+from . import filepick, plugins
 from . import voice as vmod
 from .fmt import PRIVATE, activityText, nameColour, snippet, statusDot, userStatus, nameBadges, platformIcons
 from .screens import Picker, TextScreen
@@ -64,6 +64,7 @@ class CommandsMixin:
   /share [720p30|1080p30|1080p60|1440p60|stop|stats]  (F10 shares your screen in the call)
   /watch \\[name|stop|stats|popout]  watch someone's screen share or camera (F11, or click 🔴LIVE / 📷)
   /camera  turn your webcam on or off (F12)
+  /plugins  switch extras on and off: MessageLogger, ClearURLs, FakeNitro, SilentTyping, CallTimer and more
   Start a message with // to send a literal slash."""
 
     def action_help(self) -> None:
@@ -74,6 +75,33 @@ class CommandsMixin:
         self.push_screen(TextScreen("uncord keys", body))
 
     #everything typed after a /
+    #vencord style plugin list enter toggles one and the list stays open
+    def action_plugins(self) -> None:
+        entries = []
+        for key, name, desc, _default in plugins.PLUGINS:
+            on = plugins.enabled(self.cfg, key)
+            label = Text("☑ " if on else "☐ ", style="green" if on else "bright_black")
+            label.append(name, style="bold" if on else "")
+            label.append(f"  {desc}", style="bright_black")
+            entries.append((label, f"{name} {desc}".lower(), key))
+
+        def picked(key) -> None:
+            if not key:
+                return
+            on = plugins.toggle(self.cfg, key)
+            self.applyPlugins()
+            if key in ("show_usernames", "message_logger"):
+                for v in self.query_one("#messages").query("MessageView"):
+                    v.rerender()
+            if key == "platform_icons":
+                self.refreshMembers()
+            name = next(n for k, n, _d, _o in plugins.PLUGINS if k == key)
+            self.notify(f"{name} {'on' if on else 'off'}", timeout=2, markup=False)
+            self.action_plugins()
+
+        self.push_screen(Picker(entries, placeholder="Filter plugins…", title="Plugins · enter to switch on or off"),
+                         picked)
+
     async def runCommand(self, cmd: str) -> None:
         name, _, arg = cmd.partition(" ")
         name, arg = name.lower(), arg.strip()
@@ -116,6 +144,8 @@ class CommandsMixin:
                 self.notify(self.share.statsText() if self.share else "Not sharing.", markup=False, timeout=8)
             else:
                 self.action_share()
+        elif name in ("plugins", "plugin", "tweaks"):
+            self.action_plugins()
         elif name in ("camera", "cam", "video"):
             self.action_camera()
         elif name == "watch":

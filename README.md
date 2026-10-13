@@ -22,13 +22,14 @@ Most terminal Discord clients stop at text. uncord tries to be the whole app:
 - **It looks like Discord.** Server tags, APP badges, which device people are on, server folders, and a members list.
 - **Encrypted end to end.** Voice, cameras and streams use Discord's DAVE encryption, the same as the official app.
 - **Easy to keep running.** One install script for most distros, `uncord --update` to get the latest, and `uncord --doctor` when something's missing.
+- **Plugins built in.** MessageLogger, ClearURLs, FakeNitro, SilentTyping, CallTimer and more, switched on and off with `/plugins`. No client mod needed.
 - **Keys you already know.** Ctrl+K to jump, Alt+arrows to move between channels. No modes to learn.
 
 ## What it can do
 
 - **Chat:** servers, DMs and group DMs, replies, edits, reactions, pins, threads and forum posts, search, unread and mention counts.
 - **Looks:** markdown with headings, quotes, lists and syntax-highlighted code blocks; server tags and APP badges next to names; 🖥 📱 🌐 icons for which device people are on; a members list (F2).
-- **Media:** images, GIFs, stickers and custom emoji drawn inline as sixel graphics. Click one to see it full size. Videos open in mpv.
+- **Media:** images, GIFs, stickers and custom emoji drawn inline: crisp in Kitty and Ghostty (Kitty graphics), sixel in foot, WezTerm, Konsole and others. Click one to see it full size. Videos open in mpv.
 - **Composer:** `@`, `#` and `:emoji:` autocomplete. You can paste images from the clipboard, upload files with your own file manager, send GIFs from your favourites, and record voice messages.
 - **Voice and video:**
   - calls in servers and DMs, with mute, deafen and per-person volume
@@ -42,7 +43,7 @@ Most terminal Discord clients stop at text. uncord tries to be the whole app:
 
 - **Linux.** x86_64 and ARM (aarch64) both work, as do glibc and musl distros.
 - **Python 3.10 or newer.**
-- **A terminal with sixel graphics** if you want images inline: foot, WezTerm, Konsole, Contour, mlterm, or xterm started with `-ti vt340`. Other terminals still work, but images fall back to blocky previews.
+- **A terminal that can draw images** if you want them inline: Kitty or Ghostty (Kitty graphics, the sharpest), or foot, WezTerm, Konsole, Contour, mlterm or xterm `-ti vt340` (sixel). Other terminals still work, but images fall back to blocky previews.
 - **For voice:** PipeWire (`pw-play` / `pw-record`), libopus and ffmpeg.
 - **Optional:**
   - `chafa`: faster, nicer images
@@ -158,6 +159,23 @@ Click a voice channel to join it, or press F5 in a DM to call. The bar above the
 - **m** mutes the stream's sound, **esc** closes the viewer and **?** shows the rest of the keys.
 - Streams in H.264, H.265, VP8, VP9 and AV1 all work.
 
+## Plugins
+
+Type `/plugins` to switch extras on and off, Vencord style:
+
+| Plugin | What it does | Default |
+| --- | --- | --- |
+| MessageLogger | keeps deleted messages on screen and shows what edited ones said before | on |
+| ShowMeYourName | shows @username next to nicknames | on |
+| PlatformIndicators | 🖥 📱 🌐 for the devices people are on | on |
+| TypingIndicator | ✎ next to channels and DMs where someone is typing | on |
+| CallTimer | how long you've been in the call | on |
+| ClearURLs | strips tracking junk (utm, fbclid, si…) from links you send | on |
+| FakeNitro | sends emoji you can't use here as image links instead of failing | on |
+| NoReplyMention | replies don't ping the person you reply to | off |
+| SilentTyping | others don't see that you're typing | off |
+| RelationshipNotifier | tells you when someone unfriends you or sends a request | on |
+
 ## Files and settings
 
 | What | Where |
@@ -192,7 +210,7 @@ Environment variables, for when uncord can't find something on its own:
 
 Run `uncord --doctor` first. It lists everything uncord looks for and tells you what's missing.
 
-- **No images, just coloured blocks:** your terminal doesn't do sixel. Try foot, WezTerm or Konsole.
+- **No images, just coloured blocks:** your terminal can't draw images. Try Kitty, Ghostty, foot, WezTerm or Konsole.
 - **Can't hear anyone, or nobody hears you:**
   - Check `pw-play` and `pw-record` exist.
   - Pick the right devices in F9. If you have more than one mic, the default might not be the one you talk into.

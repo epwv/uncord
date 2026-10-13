@@ -128,6 +128,8 @@ class MessageView(Vertical):
         self.message = message
         self.grouped = grouped
         self.revealed = False
+        self.deleted = False
+        self.edits: list = []
         self.previewed: frozenset = frozenset()
         self._mediaKey = None
         self.mediaDone = False
@@ -149,6 +151,8 @@ class MessageView(Vertical):
                 app.client.get_channel,
                 grouped=self.grouped,
                 reveal=self.revealed,
+                deleted=self.deleted,
+                edits=tuple(self.edits),
                 previewed=self.previewed,
                 reactions=False,
             )

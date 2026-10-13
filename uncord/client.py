@@ -49,6 +49,12 @@ class UncordClient(discord.Client):
     async def on_relationship_update(self, before, after) -> None:
         self.app.onDiscordPresence(after.user)
 
+    async def on_relationship_add(self, rel) -> None:
+        self.app.onRelationship(rel, added=True)
+
+    async def on_relationship_remove(self, rel) -> None:
+        self.app.onRelationship(rel, added=False)
+
     async def on_voice_state_update(self, member, before, after) -> None:
         self.app.onDiscordVoiceState(member, before, after)
 

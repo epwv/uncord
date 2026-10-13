@@ -270,7 +270,7 @@ class AttachMixin:
             self.notify(f"Uploading {len(files)} file(s), {humanSize(total)}…", markup=False)
         kw = {"files": [discord.File(io.BytesIO(d), filename=n) for n, d in files]}
         if replyTo is not None:
-            kw.update(reference=replyTo, mention_author=True)
+            kw.update(reference=replyTo, mention_author=not self.plugin("no_reply_mention"))
         try:
             await self.current.send(self.convertOutgoing(text) if text.strip() else None, **kw)
         except discord.HTTPException as e:

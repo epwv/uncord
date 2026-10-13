@@ -119,7 +119,7 @@ def parseEmoji(client: discord.Client, text: str, guild: Optional[discord.Guild]
 _SHORTCODE = re.compile(r"(?<![<\w]):([\w+\-]{2,32}):(?!\d)")
 
 
-def convertShortcodes(client: discord.Client, text: str, guild: Optional[discord.Guild]) -> str:
+def convertShortcodes(client: discord.Client, text: str, guild: Optional[discord.Guild], links: bool = False) -> str:
     parts = re.split(r"(```.*?```|`[^`]*`)", text, flags=re.S)
     for i in range(0, len(parts), 2):
 
@@ -128,6 +128,12 @@ def convertShortcodes(client: discord.Client, text: str, guild: Optional[discord
             e = findCustom(client, name, guild)
             if e is not None:
                 return str(e)
+            if links:
+                #fakenitro an emoji we cant use here goes as its image link
+                e = next((x for x in customEmojis(client, guild) if x.name.lower() == name.lower()), None)
+                if e is not None:
+                    return f"https://cdn.discordapp.com/emojis/{e.id}.{'gif' if e.animated else 'webp'}?size=48&name={e.name}"
+
             ch = UNICODE.get(name.lower())
             return ch if ch else m.group(0)
 

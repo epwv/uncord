@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Optional
 
 from rich.style import Style
@@ -93,6 +94,7 @@ class CallsMixin:
         if vc.speaker:
             vc.speaker.volume = int(self.cfg.get("volume", 100)) / 100
         self.vc = vc
+        self.callStarted = time.monotonic()
         self.sfx("connect")
         if isinstance(ch, PRIVATE) and (self.selfMuted or self.selfDeafened):
             asyncio.create_task(self._pushVoiceFlags())
@@ -280,6 +282,10 @@ class CallsMixin:
                 )
                 t.append(" ")
 
+            if self.plugin("call_timer") and self.callStarted:
+                secs = int(time.monotonic() - self.callStarted)
+                h, m = divmod(secs // 60, 60)
+                t.append((f"{h}:{m:02d}:{secs % 60:02d}" if h else f"{m}:{secs % 60:02d}") + "  ", style="bright_black")
             btn("🔇 Unmute" if self.selfMuted else "🎙 Mute", "mute", self.selfMuted)
             btn("🙉 Undeafen" if self.selfDeafened else "🎧 Deafen", "deafen", self.selfDeafened)
             btn("■ Stop sharing" if self.share else "🖥 Share", "share", on=bool(self.share))

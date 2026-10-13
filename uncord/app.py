@@ -23,7 +23,7 @@ from textual.widgets.tree import TreeNode
 
 from . import emojis as emo
 from . import media, sixelview, voicemsg
-from . import golive, streamview
+from . import fmt, golive, plugins, streamview
 from . import voice as vmod
 from .config import Config
 from .fmt import (
@@ -216,6 +216,8 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         self.localUnread: Dict[int, int] = {}
         self.localMentions: Dict[int, int] = {}
         self.typing: Dict[int, float] = {}
+        self.typingElsewhere: Dict[int, float] = {}  #channel id to when someone last typed there
+        self.callStarted = 0.0
         self.typingNames: Dict[int, str] = {}
         self.replyTo: Optional[discord.Message] = None
         self.editing: Optional[discord.Message] = None
@@ -366,7 +368,15 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         footer.compact = True
         yield footer
 
+    def plugin(self, key: str) -> bool:
+        return plugins.enabled(self.cfg, key)
+
+    def applyPlugins(self) -> None:
+        fmt.SHOW_USERNAMES = self.plugin("show_usernames")
+        fmt.SHOW_PLATFORMS = self.plugin("platform_icons")
+
     def on_mount(self) -> None:
+        self.applyPlugins()
         theme = os.environ.get("UNCORD_THEME") or self.cfg.get("theme") or "ansi-dark"
         self.theme = theme if theme in self.available_themes else "ansi-dark"
         if not self.cfg.get("show_sidebar", True):
@@ -475,6 +485,8 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
             t.append(f" {self.localUnread[ch.id]}", style="bold yellow")
         if self.incoming is not None and self.incoming.id == ch.id:
             t.append(" 📞")
+        if ch.id in self.typingElsewhere:
+            t.append(" ✎", style="bright_black")
         return t
 
     def guildStats(self, g: discord.Guild):
@@ -1276,7 +1288,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         if not ev.value or ev.value.startswith("/") or self.current is None:
             return
         now = asyncio.get_running_loop().time()
-        if now - self._lastTypingSent > 8:
+        if now - self._lastTypingSent > 8 and not self.plugin("silent_typing"):
             self._lastTypingSent = now
             ch = self.current
 
@@ -1403,7 +1415,8 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
             parts[i] = re.sub(r"(?<![<\w])@([\w.\-]{1,32})", mention, parts[i])
             if g is not None:
                 parts[i] = re.sub(r"(?<![<\w&])#([\w\-]{1,100})", chan, parts[i])
-        return emo.convertShortcodes(self.client, "".join(parts), g)
+        out = emo.convertShortcodes(self.client, "".join(parts), g, links=self.plugin("fake_nitro"))
+        return plugins.clearUrls(out) if self.plugin("clear_urls") else out
 
     @on(Input.Submitted, "#input")
     async def _submit(self, ev: Input.Submitted) -> None:
@@ -1435,7 +1448,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
             if editing:
                 await editing.edit(content=out)
             elif replyTo:
-                await self.current.send(out, reference=replyTo, mention_author=True)
+                await self.current.send(out, reference=replyTo, mention_author=not self.plugin("no_reply_mention"))
             else:
                 await self.current.send(out)
         except discord.HTTPException as e:
@@ -1564,6 +1577,9 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         w = self.viewFor(payload.message_id)
         msg = getattr(payload, "message", None)
         if w and msg is not None:
+            old = w.message.content
+            if self.plugin("message_logger") and old and old != msg.content:
+                w.edits = (w.edits + [old])[-5:]
             w.refreshFrom(msg)
 
     def onDiscordDelete(self, payload) -> None:
@@ -1573,7 +1589,10 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         if self.current is None or payload.channel_id != self.current.id:
             return
         w = self.viewFor(payload.message_id)
-        if w:
+        if w and self.plugin("message_logger"):
+            w.deleted = True
+            w.rerender()
+        elif w:
             w.remove()
 
     def onDiscordAck(self, payload) -> None:
@@ -1585,13 +1604,23 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         self.relabel(ch)
 
     def onDiscordTyping(self, channel, user) -> None:
-        if self.current is None or channel.id != self.current.id or user.id == self.meId:
+        if user.id == self.meId:
+            return
+        if self.current is None or channel.id != self.current.id:
+            #typingindicator ✎ on the channel in the sidebar
+            if self.plugin("typing_indicator"):
+                self.typingElsewhere[channel.id] = time.monotonic()
+                self.relabel(channel)
             return
         self.typing[user.id] = asyncio.get_running_loop().time()
         self.typingNames[user.id] = getattr(user, "display_name", str(user))
         self.tickTyping()
 
     def tickTyping(self) -> None:
+        stale = [cid for cid, t in self.typingElsewhere.items() if time.monotonic() - t > 10]
+        for cid in stale:
+            self.typingElsewhere.pop(cid, None)
+            self.relabel(self.client.get_channel(cid))
         now = asyncio.get_running_loop().time()
         for uid in [u for u, t in self.typing.items() if now - t > 10]:
             self.typing.pop(uid, None)
@@ -1624,6 +1653,25 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         if dm is not None and dm.id in self.nodes:
             self.relabel(dm)
         self.membersLater()
+
+    #relationshipnotifier
+    def onRelationship(self, rel, added: bool) -> None:
+        if not self.plugin("relationship_notifier"):
+            return
+        name = rel.user.display_name if rel.user else "Someone"
+        kind = rel.type
+        RT = discord.RelationshipType
+        if added and kind == RT.incoming_request:
+            msg = f"{name} sent you a friend request (Ctrl+U to accept)"
+        elif added and kind == RT.friend:
+            msg = f"You and {name} are now friends"
+        elif not added and kind == RT.friend:
+            msg = f"{name} is no longer your friend"
+        elif not added and kind == RT.outgoing_request:
+            msg = f"{name} declined or you cancelled the friend request"
+        else:
+            return
+        self.notify(msg, title="Friends", timeout=10, markup=False)
 
     def sfx(self, kind: str) -> None:
         if self.cfg.get("sfx", True):

@@ -493,7 +493,12 @@ class MessageActionsMixin:
             inp = self.query_one("#input", ChatInput)
             if isinstance(e, discord.Emoji):
                 if not emo.usableHere(self.client, e, self.currentGuild()):
-                    self.notify(f":{e.name}: needs Nitro here.", severity="warning", markup=False)
+                    if not self.plugin("fake_nitro"):
+                        self.notify(f":{e.name}: needs Nitro here.", severity="warning", markup=False)
+                        return
+                    #fakenitro sends it as an image link when the message goes out
+                    inp.insert_text_at_cursor(f":{e.name}: ")
+                    inp.focus()
                     return
                 txt = str(e)
             else:
@@ -532,7 +537,7 @@ class MessageActionsMixin:
             async def go():
                 try:
                     if replyTo is not None:
-                        await ch.send(g["url"], reference=replyTo, mention_author=True)
+                        await ch.send(g["url"], reference=replyTo, mention_author=not self.plugin("no_reply_mention"))
                     else:
                         await ch.send(g["url"])
                 except discord.HTTPException as e:

@@ -171,7 +171,7 @@ def platforms(u) -> list:
 
 
 def platformIcons(u) -> Text:
-    found = platforms(u)
+    found = platforms(u) if SHOW_PLATFORMS else []
     return Text(" " + "".join(icon for icon, _n in found), style="bright_black") if found else Text()
 
 
@@ -506,6 +506,11 @@ def nameBadges(user, webhook: bool = False) -> Text:
     return t
 
 
+#plugin switches the app sets from config
+SHOW_USERNAMES = True
+SHOW_PLATFORMS = True
+
+
 def renderMessage(
     m: discord.Message,
     meId: int,
@@ -515,6 +520,8 @@ def renderMessage(
     reveal: bool = False,
     previewed: frozenset = frozenset(),
     reactions: bool = True,
+    deleted: bool = False,
+    edits: tuple = (),
 ):
     ctx = messageContext(m, meId, get_channel, reveal)
     grid = Table.grid(padding=(0, 1), expand=True)
@@ -547,6 +554,9 @@ def renderMessage(
     body = Text()
     if showName:
         body.append(m.author.display_name, style=Style(color=nameColour(m.author), bold=True))
+        uname = getattr(m.author, "name", "")
+        if SHOW_USERNAMES and uname and uname.lower() != m.author.display_name.lower() and not m.webhook_id:
+            body.append(f" @{uname}", style="bright_black")
         #bot command replies also have a webhook id but they come with an application id
         body.append_text(nameBadges(m.author, webhook=m.webhook_id is not None and m.application_id is None))
         body.append("  ")
@@ -655,6 +665,12 @@ def renderMessage(
             )
     if m.edited_at:
         body.append(" (edited)", style="bright_black")
+    if deleted:
+        body.stylize(Style(color="red", dim=True), 0, len(body))
+        body.append("  deleted", style="bold red")
+    #message logger keeps what it said before each edit
+    for k, old in enumerate(edits):
+        extras.insert(k, Text("✎ " + snippet(old, 300), style=Style(color="bright_black", strike=True)))
     if m.reactions and reactions:
         extras.append(reactionText(m.reactions))
     thread = getattr(m, "thread", None)
