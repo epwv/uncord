@@ -434,6 +434,33 @@ def mentionsMe(m: discord.Message, meId: int) -> bool:
     return isinstance(ref, discord.Message) and ref.author.id == meId and m.author.id != meId
 
 
+#badges after a name like the discord app shows them, server tag then app or system
+def nameBadges(user, webhook: bool = False) -> Text:
+    t = Text()
+    try:
+        pg = user.primary_guild
+        if pg.tag and pg.identity_enabled is not False:
+            t.append(" ")
+            t.append(f" {pg.tag} ", style=Style(color="white", bgcolor="grey30", bold=True))
+    except Exception:
+        pass
+    if webhook:
+        label = "WEBHOOK"
+    elif getattr(user, "system", False):
+        label = "SYSTEM"
+    elif getattr(user, "bot", False):
+        try:
+            verified = user.public_flags.verified_bot
+        except Exception:
+            verified = False
+        label = "✓ APP" if verified else "APP"
+    else:
+        return t
+    t.append(" ")
+    t.append(f" {label} ", style=Style(color="white", bgcolor="blue", bold=True))
+    return t
+
+
 def renderMessage(
     m: discord.Message,
     meId: int,
@@ -474,9 +501,9 @@ def renderMessage(
 
     body = Text()
     if showName:
-        if getattr(m.author, "bot", False):
-            body.append("ᴮᴼᵀ ", style="bright_black")
         body.append(m.author.display_name, style=Style(color=nameColour(m.author), bold=True))
+        #bot command replies also have a webhook id but they come with an application id
+        body.append_text(nameBadges(m.author, webhook=m.webhook_id is not None and m.application_id is None))
         body.append("  ")
     content = m.content
     if previewed and content and content.strip() in previewed:

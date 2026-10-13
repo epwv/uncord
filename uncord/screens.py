@@ -16,7 +16,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
-from .fmt import PRIVATE, activityText, humanSize, nameColour, snippet, statusDot, STATUS_NAME, userStatus
+from .fmt import (PRIVATE, STATUS_NAME, activityText, humanSize, nameBadges, nameColour, snippet, statusDot,
+                  userStatus)
 
 log = logging.getLogger("uncord")
 
@@ -345,6 +346,7 @@ class ProfileScreen(ModalScreen):
         u = self.user
         t = Text()
         t.append(u.display_name, style=f"bold {nameColour(u)}")
+        t.append_text(nameBadges(u))
         t.append(f"\n@{u.name}", style="bright_black")
         pron = getattr(profile, "pronouns", None) if profile else None
         if pron:
