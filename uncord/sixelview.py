@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import random
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Tuple
@@ -28,9 +29,14 @@ try:
     from textual_image.renderable import Image as _Auto
     from textual_image.renderable.sixel import Image as _SixelR
 
+    from textual_image.renderable.tgp import Image as _KittyR
+
     SIXEL = _Auto is _SixelR
+    #kitty graphics with unicode placeholders, kitty and ghostty, much better than half blocks
+    KITTY = _Auto is _KittyR
 except Exception:
-    SIXEL = False
+    SIXEL = KITTY = False
+GRAPHICS = SIXEL or KITTY
 
 _POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="uncord-sixel")
 
@@ -249,12 +255,96 @@ class SixelMedia(Widget, can_focus=False):
         return out
 
 
+#kitty graphics protocol
+#each frame is uploaded once as a png then drawn with placeholder cells whose colour is the image id
+#so textual treats it like text and scrolling or repainting needs no special handling
+
+_PLACEHOLDER = "\U0010EEEE"
+_KITTY_IDS = iter(range(random.randint(1 << 16, 1 << 22), 1 << 24))
+
+
+def _diacritic(n: int) -> str:
+    from textual_image.renderable.tgp import _NUMBER_TO_DIACRITIC
+
+    return chr(_NUMBER_TO_DIACRITIC[n])
+
+
+def kittyMessage(payload: str = "", **keys) -> str:
+    return "\x1b_G" + ",".join(f"{k}={v}" for k, v in keys.items()) + (";" + payload if payload else "") + "\x1b\\"
+
+
+def kittyUpload(img, imageId: int, cols: int, rows: int) -> str:
+    import base64
+    import io as _io
+
+    buf = _io.BytesIO()
+    img.save(buf, format="PNG", compress_level=1)
+    data = base64.b64encode(buf.getvalue()).decode()
+    out = []
+    first = True
+    while data:
+        chunk, data = data[:4096], data[4096:]
+        keys = dict(a="t", f=100, i=imageId, q=2) if first else dict(q=2)
+        keys["m"] = 1 if data else 0
+        out.append(kittyMessage(chunk, **keys))
+        first = False
+    out.append(kittyMessage(a="p", U=1, i=imageId, c=cols, r=rows, q=2))
+    return "".join(out)
+
+
+class KittyMedia(SixelMedia):
+
+    def _job(self, i: int) -> None:
+        try:
+            if self.is_attached and i not in self._encoded:
+                imageId = next(_KITTY_IDS)
+                seq = kittyUpload(self._scaled(i), imageId, self.cols, self.rows)
+                self.app._driver.write(seq)
+                self._encoded[i] = imageId
+        except Exception:
+            log.debug("kitty upload failed", exc_info=True)
+        finally:
+            self._pending.discard(i)
+            if i == self.idx:
+                loop = self._loop
+                if loop is not None and not loop.is_closed():
+                    loop.call_soon_threadsafe(self.refresh)
+
+    def on_unmount(self) -> None:
+        ids = list(self._encoded.values())
+        super().on_unmount()
+        try:
+            for imageId in ids:
+                self.app._driver.write(kittyMessage(a="d", d="I", i=imageId, q=2))
+        except Exception:
+            pass
+
+    def render_lines(self, crop: Region) -> list:
+        style = self.rich_style
+        imageId = self._encoded.get(self.idx)
+        if imageId is None:
+            self.request(self.idx)
+            return [Strip.blank(crop.width, style)] * crop.height
+        colour = Style(color=f"rgb({(imageId >> 16) & 255},{(imageId >> 8) & 255},{imageId & 255})")
+        out = []
+        for line in range(crop.y, crop.bottom):
+            if line >= self.rows:
+                out.append(Strip.blank(crop.width, style))
+                continue
+            row = _diacritic(line)
+            text = "".join(_PLACEHOLDER + row + _diacritic(c) for c in range(crop.x, crop.x + crop.width))
+            out.append(Strip([Segment(text, colour)], cell_length=crop.width))
+        return out
+
+
 def mediaWidget(frames, maxCols: int, maxRows: int, classes: str = "media", **kw) -> Widget:
     first = frames[0][0]
     w, h = first.size
     cols, rows = boxFor(w, h, maxCols, maxRows)
     if SIXEL:
         return SixelMedia(frames, cols, rows, classes=classes, **kw)
+    if KITTY:
+        return KittyMedia(frames, cols, rows, classes=classes, **kw)
     from textual_image.renderable.halfcell import Image as Halfcell
 
     rowsHc = max(1, round(cols * h / w / 2))

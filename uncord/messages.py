@@ -42,13 +42,13 @@ class ReactionChip(Horizontal):
         if not self.custom:
             self._label = Static(Text(str(self.emoji)), classes="chiplabel")
             yield self._label
-        elif not sixelview.SIXEL:
+        elif not sixelview.GRAPHICS:
             self._label = Static(Text(f":{self.emoji.name}:", style="yellow"), classes="chiplabel")
             yield self._label
         yield self._count
 
     def on_mount(self) -> None:
-        if self.custom and sixelview.SIXEL:
+        if self.custom and sixelview.GRAPHICS:
             self.loadImage()
 
     @work(exclusive=True)
@@ -65,7 +65,7 @@ class ReactionChip(Horizontal):
                     Static(Text(f":{e.name}:", style="yellow"), classes="chiplabel"), before=self._count
                 )
             return
-        w = sixelview.SixelMedia(frames, 2, 1, classes="chipimg")
+        w = (sixelview.KittyMedia if sixelview.KITTY else sixelview.SixelMedia)(frames, 2, 1, classes="chipimg")
         await self.mount(w, before=self._count)
 
     def updateFrom(self, reaction) -> None:

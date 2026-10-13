@@ -279,7 +279,7 @@ class ImageScreen(ModalScreen):
         for w in list(self.query("#img-slot")) + ([self._widget] if self._widget is not None else []):
             await w.remove()
         size = box.content_size
-        kw = {"alwaysAnimate": True} if sixelview.SIXEL else {}
+        kw = {"alwaysAnimate": True} if sixelview.GRAPHICS else {}
         self._widget = sixelview.mediaWidget(
             frames, max(10, size.width), max(4, size.height - 2), classes="viewer", **kw
         )
@@ -586,10 +586,10 @@ class GifPicker(ModalScreen):
             24,
             8,
             classes="gifimg",
-            **({"alwaysAnimate": t.has_class("sel")} if sixelview.SIXEL else {}),
+            **({"alwaysAnimate": t.has_class("sel")} if sixelview.GRAPHICS else {}),
         )
         await t.remove_children()
-        t.media = w if sixelview.SIXEL else None
+        t.media = w if sixelview.GRAPHICS else None
         await t.mount(w)
 
 

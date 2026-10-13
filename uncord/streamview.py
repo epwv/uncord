@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import fcntl
+import os
+import random
 import logging
 import struct
 import termios
@@ -26,6 +28,11 @@ from . import chafasixel, sixelview
 
 log = logging.getLogger("uncord")
 _DIM = Style(color="bright_black")
+
+#kitty image ids for the stream, two so a new frame goes up before the old one is removed
+KITTY_IDS = (random.randint(1 << 22, 1 << 23), random.randint(1 << 23, 1 << 24))
+#ssh means the terminal cant read our shared memory files
+LOCAL = not (os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_TTY"))
 
 #preview sizes for + and - the default 1600x900 still keeps up with a 30fps stream in foot
 BOXES = ((960, 540), (1280, 720), (1600, 900), (1920, 1080), (2240, 1260))
@@ -68,6 +75,7 @@ class LiveSixel(Widget, can_focus=False):
         self.visibleNow = False
         self._place: Optional[tuple] = None
         self._lastSeq: Optional[str] = None
+        self._kittyId = 0
         self._healPending = False
         self._stop = threading.Event()
         self._wlock = threading.Lock()
@@ -81,6 +89,45 @@ class LiveSixel(Widget, can_focus=False):
             self._stop.set()
             self.visibleNow = False
         self.decoder.newFrame.set()
+        self._kittyClear()
+
+    #kitty frames go through a shared memory file so we only send the path
+    #over ssh the file isnt there so send the pixels zlib compressed instead
+    def _kittyFrame(self, data: bytes, w: int, h: int, x: int, y: int, cols: int, rows: int) -> str:
+        import base64
+
+        old = self._kittyId
+        self._kittyId = KITTY_IDS[0] if old != KITTY_IDS[0] else KITTY_IDS[1]
+        keys = dict(a="T", f=24, s=w, v=h, i=self._kittyId, p=1, c=cols, r=rows, C=1, q=2)
+        if LOCAL:
+            path = f"/dev/shm/tty-graphics-protocol-uncord-{os.getpid()}-{self._kittyId}.rgb"
+            with open(path, "wb") as f:
+                f.write(data)
+            body = sixelview.kittyMessage(base64.b64encode(path.encode()).decode(), t="t", **keys)
+        else:
+            import zlib
+
+            packed = base64.b64encode(zlib.compress(data, 1)).decode()
+            parts, first = [], True
+            while packed:
+                chunk, packed = packed[:4096], packed[4096:]
+                more = dict(keys, o="z") if first else {}
+                parts.append(sixelview.kittyMessage(chunk, m=1 if packed else 0, **more))
+                first = False
+            body = "".join(parts)
+        self._bytes = len(data)
+        drop = sixelview.kittyMessage(a="d", d="I", i=old, q=2) if old else ""
+        return "\x1b[?2026h\x1b7" + Control.move_to(x, y).segment.text + body + drop + "\x1b8\x1b[?2026l"
+
+    def _kittyClear(self) -> None:
+        if not sixelview.KITTY:
+            return
+        try:
+            for i in KITTY_IDS:
+                self.app._driver.write(sixelview.kittyMessage(a="d", d="I", i=i, q=2))
+        except Exception:
+            pass
+        self._kittyId = 0
 
     def _checkVisible(self) -> None:
         try:
@@ -117,6 +164,7 @@ class LiveSixel(Widget, can_focus=False):
         cols, rows = max(2, int(cols * scale)), max(2, int(rows * scale))
         x = region.x + (region.width - cols) // 2
         y = region.y + (region.height - rows) // 2
+        self._kittyClear()
         with self._wlock:
             self._place = (x, y, cols, rows, cw, ch)
             self.hasFrame = False
@@ -181,6 +229,19 @@ class LiveSixel(Widget, can_focus=False):
             if (w, h) != (bw - bw % 2, bh - bh % 2):
                 continue
             t = time.monotonic()
+            if sixelview.KITTY:
+                seq = self._kittyFrame(data, w, h, x, y, cols, rows)
+                self._encodeMs = self._encodeMs * 0.9 + (time.monotonic() - t) * 100
+                with self._wlock:
+                    if self._stop.is_set() or not self.visibleNow or place != self._place:
+                        continue
+                    try:
+                        self.app._driver.write(seq)
+                    except Exception:
+                        continue
+                    self.hasFrame = True
+                self.shown += 1
+                continue
             try:
                 img = PILImage.frombytes("RGB", (w, h), data)
                 if img.size != (bw, bh):
@@ -340,7 +401,7 @@ class StreamScreen(Screen):
 
     def on_mount(self) -> None:
         self.set_interval(1.0, self._tick)
-        if not sixelview.SIXEL:
+        if not sixelview.GRAPHICS:
             self.query_one(LiveSixel).message = "This terminal can't show sixel graphics, opened it in mpv"
             if not self.decoder.popoutOpen():
                 self.decoder.popout(f"uncord · {self.titleText}")
