@@ -1,7 +1,10 @@
 #slash commands and the f1 help
 from __future__ import annotations
 
+import logging
 import os
+import shlex
+import time
 
 import discord
 from rich.text import Text
@@ -12,6 +15,8 @@ from .fmt import PRIVATE, activityText, nameColour, snippet, statusDot, userStat
 from .screens import Picker, TextScreen
 
 from .calls import SHARE_QUALITIES
+
+log = logging.getLogger("uncord")
 
 
 class CommandsMixin:
@@ -101,6 +106,93 @@ class CommandsMixin:
 
         self.push_screen(Picker(entries, placeholder="Filter plugins…", title="Plugins · enter to switch on or off"),
                          picked)
+
+    #bot slash commands
+
+    BUILTINS = (("help", "all keys and commands"), ("dm", "message someone"), ("group", "start a group dm"),
+                ("search", "search messages"), ("pins", "pinned messages"), ("members", "who's here"),
+                ("status", "set your status"), ("upload", "send a file"), ("share", "share your screen"),
+                ("watch", "watch a stream or camera"), ("camera", "your webcam on or off"),
+                ("plugins", "switch extras on and off"), ("inbox", "unreads and mentions"),
+                ("join", "join or call"), ("leave", "leave the call"), ("theme", "change colours"),
+                ("nick", "change your nickname here"), ("readall", "mark everything read"))
+
+    async def appCommands(self, ch) -> list:
+        #flattened to (path, command, bot name) so subcommands are "name sub"
+        cached = self._appCmds.get(ch.id)
+        if cached and time.monotonic() - cached[0] < 120:
+            return cached[1]
+        out = []
+        try:
+            cmds = await ch.application_commands()
+        except Exception:
+            log.debug("application commands", exc_info=True)
+            cmds = []
+
+        def walk(c, path, bot):
+            kids = getattr(c, "children", None) or []
+            if kids:
+                for k in kids:
+                    walk(k, f"{path} {k.name}", bot)
+            elif hasattr(c, "options"):
+                out.append((path, c, bot))
+
+        for c in cmds:
+            if getattr(c, "type", None) != discord.ApplicationCommandType.chat_input:
+                continue
+            app = getattr(c, "application", None)
+            walk(c, c.name, getattr(app, "name", "") or "bot")
+        self._appCmds[ch.id] = (time.monotonic(), out)
+        return out
+
+    async def runAppCommand(self, text: str) -> None:
+        ch = self.current
+        name = text.split(" ", 1)[0].lower()
+        if ch is None:
+            self.notify(f"Unknown command /{name}. F1 for help.", severity="warning", markup=False)
+            return
+        cmds = await self.appCommands(ch)
+        try:
+            words = shlex.split(text)
+        except ValueError:
+            words = text.split()
+        #longest matching path wins so /config set works
+        best = None
+        for path, c, bot in cmds:
+            parts = path.split()
+            if [w.lower() for w in words[: len(parts)]] == parts and (best is None or len(parts) > len(best[0].split())):
+                best = (path, c, bot)
+        if best is None:
+            self.notify(f"Unknown command /{name}. F1 for help, or this chat has no bot with that command.",
+                        severity="warning", markup=False)
+            return
+        path, c, bot = best
+        args = words[len(path.split()):]
+        opts = list(getattr(c, "options", []) or [])
+        kwargs = {}
+        positional = []
+        for a in args:
+            key, sep, val = a.partition(":")
+            if sep and any(o.name == key for o in opts):
+                kwargs[key] = val
+            else:
+                positional.append(a)
+        #plain words fill the required options in order and the last one takes the rest of the line
+        free = [o for o in opts if o.name not in kwargs and getattr(o, "required", False)]
+        for k, o in enumerate(free):
+            if k >= len(positional):
+                break
+            kwargs[o.name] = " ".join(positional[k:]) if k == len(free) - 1 else positional[k]
+        missing = [o.name for o in opts if getattr(o, "required", False) and o.name not in kwargs]
+        if missing:
+            hint = " ".join(f"{o.name}:…" for o in opts)
+            self.notify(f"/{path} needs {', '.join(missing)}. Usage: /{path} {hint}", severity="warning", markup=False)
+            return
+        try:
+            await c(ch, **kwargs)
+        except Exception as e:
+            log.exception("app command")
+            self.notify(f"/{path} ({bot}) failed: {e}", severity="error", markup=False)
 
     async def runCommand(self, cmd: str) -> None:
         name, _, arg = cmd.partition(" ")
@@ -346,7 +438,7 @@ class CommandsMixin:
         elif name in ("quit", "q", "exit"):
             await self.action_quit()
         else:
-            self.notify(f"Unknown command /{name}. F1 for help.", severity="warning", markup=False)
+            await self.runAppCommand(cmd)
 
     def _setTheme(self, t: str) -> None:
         self.theme = t

@@ -220,6 +220,7 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
         self.typingElsewhere: Dict[int, float] = {}  #channel id to when someone last typed there
         self.callStarted = 0.0
         self.rpc = None
+        self._appCmds: dict = {}
         self.rpcActivity = None
         self.typingNames: Dict[int, str] = {}
         self.replyTo: Optional[discord.Message] = None
@@ -1306,6 +1307,9 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
 
     #autocomplete for @user #channel and :emoji: from the word under the cursor
     def updateSuggestions(self, before: str) -> None:
+        if before.startswith("/") and " " not in before and self.current is not None:
+            self.slashSuggestions(before[1:].lower())
+            return
         m = self._TOKEN.search(before)
         if not m or self.current is None or before.startswith("/"):
             self.clearSuggestions()
@@ -1373,6 +1377,34 @@ class Uncord(PickersMixin, MessageActionsMixin, AttachMixin, CommandsMixin, Call
     def clearSuggestions(self) -> None:
         self.suggestions = []
         self.query_one("#suggest", Static).remove_class("on")
+
+    #typing / lists our commands and the bots commands in this chat
+    def slashSuggestions(self, word: str) -> None:
+        out = [(Text(f"/{n}", style="cyan") + Text(f" {d}", style="bright_black"), f"/{n} ", None)
+               for n, d in self.BUILTINS if n.startswith(word)]
+        cached = self._appCmds.get(self.current.id)
+        if cached is None:
+            asyncio.create_task(self._fetchAppCommands(self.current, word))
+        for path, c, bot in (cached[1] if cached else []):
+            if path.startswith(word):
+                desc = snippet(getattr(c, "description", "") or "", 40)
+                out.append((Text(f"/{path}", style="yellow") + Text(f" {desc} · {bot}", style="bright_black"),
+                            f"/{path} ", None))
+            if len(out) >= 10:
+                break
+        if not out:
+            self.clearSuggestions()
+            return
+        self.suggestions = out[:10]
+        self.suggestIdx = 0
+        self._suggestSpan = (0, len(word) + 1)
+        self.renderSuggestions()
+
+    async def _fetchAppCommands(self, ch, word: str) -> None:
+        await self.appCommands(ch)
+        inp = self.query_one("#input", ChatInput)
+        if self.current is ch and inp.value.startswith("/") and " " not in inp.value:
+            self.slashSuggestions(inp.value[1:].lower())
 
     def acceptSuggestion(self) -> None:
         if not self.suggestions:

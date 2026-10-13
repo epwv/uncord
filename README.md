@@ -30,6 +30,9 @@ Most terminal Discord clients stop at text. uncord tries to be the whole app:
 - **Chat:** servers, DMs and group DMs, replies, edits, reactions, pins, threads and forum posts, search, unread and mention counts.
 - **Looks:** markdown with headings, quotes, lists and syntax-highlighted code blocks; server tags and APP badges next to names; 🖥 📱 🌐 icons for which device people are on; a members list (F2).
 - **Media:** images, GIFs, stickers and custom emoji drawn inline: crisp in Kitty and Ghostty (Kitty graphics), sixel in foot, WezTerm, Konsole and others. Click one to see it full size. Videos open in mpv.
+- **Bots:** use their slash commands. Type `/` to see them with descriptions, then `/play song name` or `/cmd option:value`.
+- **Inbox (F4):** every unread chat and your recent mentions in one list, with mark-all-read.
+- **Rich Presence:** games and apps on your computer show as your activity, like the desktop app.
 - **Composer:** `@`, `#` and `:emoji:` autocomplete. You can paste images from the clipboard, upload files with your own file manager, send GIFs from your favourites, and record voice messages.
 - **Voice and video:**
   - calls in servers and DMs, with mute, deafen and per-person volume
@@ -124,6 +127,7 @@ Press **F1** inside uncord for every key. These are the ones you'll use most:
 | Ctrl+K | jump to any chat, person or server |
 | Ctrl+B | show or hide the sidebar (or click ☰ in the title bar) |
 | F2 | show or hide the members list |
+| F4 | inbox: unread chats and mentions |
 | Tab / Esc | move between the message box and the sidebar |
 | Alt+↑ / Alt+↓ | previous / next channel |
 | Ctrl+Alt+↑ / ↓ | previous / next server |
@@ -175,6 +179,7 @@ Type `/plugins` to switch extras on and off, Vencord style:
 | NoReplyMention | replies don't ping the person you reply to | off |
 | SilentTyping | others don't see that you're typing | off |
 | RelationshipNotifier | tells you when someone unfriends you or sends a request | on |
+| RichPresence | games and apps on your computer set your activity (if the desktop app isn't also running) | on |
 
 ## Files and settings
 
