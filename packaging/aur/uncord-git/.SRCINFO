@@ -1,6 +1,6 @@
 pkgbase = uncord-git
 	pkgdesc = Discord in your terminal, with voice calls, inline images and screen sharing
-	pkgver = 0.75.9.r0.g0000000
+	pkgver = 0.75.10.r0.g0000000
 	pkgrel = 1
 	url = https://github.com/epwv/uncord
 	arch = x86_64

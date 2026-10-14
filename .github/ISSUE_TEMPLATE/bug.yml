@@ -14,7 +14,7 @@ body:
     attributes:
       label: uncord version
       description: Shown at the right of the title bar, or in Settings → About.
-      placeholder: "0.75i"
+      placeholder: "0.75j"
     validations:
       required: true
   - type: input
