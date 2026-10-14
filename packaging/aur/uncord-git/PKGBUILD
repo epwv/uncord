@@ -1,7 +1,7 @@
 # Maintainer: epwv <281472559+epwv@users.noreply.github.com>
 pkgname=uncord-git
 _pkgname=uncord
-pkgver=0.75f.r0.g0000000
+pkgver=0.75.7.r0.g0000000
 pkgrel=1
 pkgdesc="Discord in your terminal, with voice calls, inline images and screen sharing"
 arch=('x86_64' 'aarch64')
@@ -23,9 +23,11 @@ sha256sums=('SKIP')
 
 pkgver() {
     cd "$_pkgname"
-    # base version comes from uncord/__init__.py so it follows every bump
-    printf "%s.r%s.g%s" "$(sed -n 's/^__version__ = "\(.*\)"/\1/p' uncord/__init__.py)" \
-        "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+    # base version comes from uncord/__init__.py, a trailing letter becomes a number (0.75f -> 0.75.6) like setup.py does
+    local v l
+    v=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' uncord/__init__.py)
+    case $v in *[a-z]) l=${v#"${v%?}"}; v=${v%?}.$(($(printf '%d' "'$l") - 96)) ;; esac
+    printf "%s.r%s.g%s" "$v" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
 }
 
 package() {

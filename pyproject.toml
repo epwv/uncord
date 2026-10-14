@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,9 +8,8 @@ dynamic = ["version"]
 description = "A Discord client for the terminal, with voice, images and screen sharing"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 classifiers = [
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Environment :: Console",
     "Topic :: Communications :: Chat",
@@ -40,5 +39,3 @@ uncord = "uncord.__main__:main"
 [tool.setuptools]
 packages = ["uncord"]
 
-[tool.setuptools.dynamic]
-version = { attr = "uncord.__version__" }

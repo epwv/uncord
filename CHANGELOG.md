@@ -1,6 +1,13 @@
 # Changelog
 
+## 0.75g (2026-10-14)
+
+- Installing works again: versions with a letter (0.75c to 0.75f) weren't valid for pip. The title bar still shows the letter, and pip sees 0.75g as 0.75.7
+
 ## 0.75b to 0.75f (2026-10-14)
+
+Installing from GitHub failed from 0.75c to 0.75f, fixed in 0.75g.
+
 
 - MIT license
 - Readme: Nix install with `nix profile install`, AUR and nixpkgs listed as todos
