@@ -16,7 +16,7 @@ Installing from GitHub failed from 0.75c to 0.75f, fixed in 0.75g.
 - MIT license
 - Readme: Nix install with `nix profile install`, AUR and nixpkgs listed as todos
 - Stable AUR package builds from the v0.75b release
-- Changelog, CI, issue templates, contributing and security notes
+- Changelog, issue templates, contributing and security notes
 
 ## 0.75 (2026-10-14)
 

@@ -20,4 +20,4 @@ After editing `uncord/_native.c`, rebuild it with `.venv/bin/python setup.py bui
 - config keys stay snake_case so old config files keep working
 - the server and DM list stays plain text
 
-Run `pyflakes uncord` before sending a pull request. CI runs it too.
+Run `pyflakes uncord` before sending a pull request.
