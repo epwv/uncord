@@ -14,7 +14,6 @@ Questions or ideas? Join the [uncord Discord server](https://discord.gg/fubfK8C6
 - [Features](#features)
 - [Install](#install)
   - [Install script (most distros)](#install-script-most-distros)
-  - [Arch (AUR)](#arch-aur)
   - [Nix](#nix)
   - [By hand](#by-hand)
 - [Logging in](#logging-in)
@@ -59,15 +58,6 @@ It installs the system packages with your package manager (it asks first), puts 
 | `--uninstall` | remove uncord (keeps your login and settings) |
 
 Update with `uncord --update`. uncord also tells you when an update is out.
-
-### Arch (AUR)
-
-Not on the AUR yet (see [Todo](#todo)). Use the install script for now. Once it's up:
-
-```sh
-yay -S uncord        # latest release
-yay -S uncord-git    # latest commit
-```
 
 ### Nix
 
