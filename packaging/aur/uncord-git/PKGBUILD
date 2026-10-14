@@ -40,19 +40,7 @@ package() {
     printf '#!/bin/sh\nexec %s/bin/uncord "$@"\n' "$venv" > "$pkgdir/usr/bin/uncord"
     chmod 755 "$pkgdir/usr/bin/uncord"
 
-    install -d "$pkgdir/usr/share/applications"
-    cat > "$pkgdir/usr/share/applications/uncord.desktop" <<DESKTOP
-[Desktop Entry]
-Type=Application
-Name=uncord
-GenericName=Discord client
-Comment=Discord in your terminal
-Exec=uncord
-Icon=internet-chat
-Terminal=true
-Categories=Network;Chat;InstantMessaging;
-Keywords=discord;chat;voice;
-DESKTOP
-
+    install -Dm644 "$srcdir/$_pkgname/packaging/uncord.desktop" "$pkgdir/usr/share/applications/uncord.desktop"
+    install -Dm644 "$srcdir/$_pkgname/assets/icon.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/uncord.svg"
     install -Dm644 "$srcdir/$_pkgname/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
 }

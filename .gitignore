@@ -10,3 +10,6 @@ dist/
 .chafa
 .ffmpeg-bin
 .libopus
+*.so
+result
+result-*

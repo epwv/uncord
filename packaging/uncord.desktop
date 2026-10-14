@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=uncord
+GenericName=Discord client
+Comment=Discord in your terminal
+Exec=uncord
+Icon=uncord
+Terminal=true
+Categories=Network;Chat;InstantMessaging;
+Keywords=discord;chat;voice;

@@ -1,0 +1,26 @@
+pkgbase = uncord
+	pkgdesc = Discord in your terminal, with voice calls, inline images and screen sharing
+	pkgver = 0.6
+	pkgrel = 1
+	url = https://github.com/epwv/uncord
+	arch = x86_64
+	arch = aarch64
+	license = unknown
+	makedepends = python-pip
+	depends = python
+	depends = ffmpeg
+	depends = opus
+	depends = pipewire
+	optdepends = chafa: faster, nicer inline images
+	optdepends = mpv: pop videos and streams out into a window
+	optdepends = wl-clipboard: paste images on wayland
+	optdepends = xclip: paste images on x11
+	optdepends = libnotify: desktop notifications
+	optdepends = gpu-screen-recorder: share your screen
+	conflicts = uncord-git
+	options = !strip
+	options = !debug
+	source = uncord-0.6.tar.gz::https://github.com/epwv/uncord/archive/refs/tags/v0.6.tar.gz
+	sha256sums = SKIP
+
+pkgname = uncord
