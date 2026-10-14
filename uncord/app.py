@@ -20,7 +20,11 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Footer, Input, Static, Tree
 from textual.widgets.tree import TreeNode
 
-from . import emojis as emo
+from . import safety
+
+safety.hardenText()
+
+from . import emojis as emo  # noqa: E402
 from . import media, sixelview, voicemsg
 from . import __version__, fmt, golive, notify, plugins, streamview
 from . import voice as vmod
@@ -122,7 +126,7 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
     .emojirow { height: auto; width: 1fr; }
     .reactions { margin: 0 0 0 6; }
     .chip { background: ansi_bright_black; color: ansi_white; margin-right: 1; padding: 0 1 0 1; }
-    .chip.mine { background: ansi_cyan; color: ansi_black; text-style: bold; }
+    .chip.mine { background: #5865f2; color: white; text-style: bold; }
     .chip:hover { text-style: bold reverse; }
     .chiplabel, .chipcount { width: auto; height: 1; background: transparent; }
     .chipcount { padding-left: 1; }
@@ -140,19 +144,12 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
     #suggest { height: 1; padding: 0 1; display: none; }
     .modal.confirm { width: 60; height: 6; }
     .modal.gifs { width: 110; max-width: 98%; height: 30; }
-    .modal.voicesettings { width: 96; max-width: 98%; height: 34; }
     .modal.usermenu { width: 48; height: 16; }
-    .vs-row { height: auto; margin-bottom: 1; }
-    .vs-col { width: 1fr; height: auto; margin-right: 2; }
-    .vs-head { margin-top: 1; }
-    .vs-switch { height: 1; }
-    .vs-switch Switch { border: none; height: 1; width: 6; padding: 0; margin-right: 1; }
-    .vs-switch Static { width: 1fr; }
     #suggest.on { display: block; }
     #composer { height: 1; }
     #input { height: 1; border: none; padding: 0 1; width: 1fr; }
     .cbtn { width: auto; height: 1; padding: 0 1; margin-left: 1; background: ansi_bright_black; color: ansi_white; }
-    .cbtn:hover { background: ansi_cyan; color: ansi_black; }
+    .cbtn:hover { background: #5865f2; color: white; }
     .cbtn.plus { margin-left: 0; margin-right: 1; text-style: bold; }
     #voicebar { height: 3; padding: 0 1; display: none; border-bottom: hkey $foreground 25%; }
     #voicebar.on { display: block; }
@@ -411,10 +408,22 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
         for k in range(3):
             ml.set_class(k == n, f"space-{k}")
 
-    def action_settings(self, category: str = "appearance") -> None:
+    def action_settings(self, tab: str = "appearance") -> None:
         from .settings import SettingsScreen
 
-        self.push_screen(SettingsScreen(category))
+        if isinstance(self.screen, SettingsScreen):
+            return
+        self.push_screen(SettingsScreen(tab))
+
+    #forget the saved login and quit, next start asks how to log in
+    def logout(self) -> None:
+        from .__main__ import TOKEN_FILE
+
+        try:
+            TOKEN_FILE.unlink()
+        except FileNotFoundError:
+            pass
+        self.run_worker(self.action_quit())
 
     #a plugin was switched so redraw whatever it touches
     def pluginChanged(self, key: str) -> None:
@@ -424,6 +433,16 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
                 v.rerender()
         elif key in ("platform_icons",):
             self.refreshMembers()
+            for v in self.query_one("#messages").query("MessageView"):
+                v.rerender()
+        elif key == "rich_presence" and self._readyOnce:
+            if self.plugin(key) and self.rpc is None:
+                self.startRpc()
+            elif not self.plugin(key) and self.rpc is not None:
+                self.rpc.stop()
+                self.rpc = None
+                if self.rpcActivity is not None:
+                    self.setRpcActivity(None)
         elif key == "member_count":
             self.refreshTitleRight()
         elif key == "pin_dms":
@@ -441,6 +460,7 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
         fmt.SHOW_PLATFORMS = self.plugin("platform_icons")
         fmt.REPLY_TIMESTAMP = self.plugin("reply_timestamp")
         fmt.UNINDENT = self.plugin("unindent")
+        fmt.SHOW_LINK_DOMAINS = bool(self.cfg.get("show_link_domains", True))
 
     def on_mount(self) -> None:
         self.applyPlugins()
@@ -1006,6 +1026,11 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
         online = sorted((u for u in members if userStatus(u) != "offline"), key=lambda u: u.display_name.lower())
         offline = sorted((u for u in members if userStatus(u) == "offline"), key=lambda u: u.display_name.lower())
         t = Text()
+        if members:
+            t.append("● ", style=fmt.STATUS_DOT["online"][1])
+            t.append(f"{len(online)}   ", style="bold")
+            t.append("○ ", style="bright_black")
+            t.append(f"{len(offline)}\n", style="bold")
         for title, group in (("ONLINE", online), ("OFFLINE", offline)):
             if not group:
                 continue
@@ -1022,6 +1047,8 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
                 t.append("\n")
                 act = activityText(u)
                 if act and title == "ONLINE":
+                    if act.startswith("Playing "):
+                        act = "▶ " + act[8:]
                     t.append(f"  {snippet(act, 26)}\n", style=Style(color="bright_black", italic=True) + meta)
             if len(group) > 150:
                 t.append(f"  … {len(group) - 150} more\n", style="bright_black")
@@ -1688,7 +1715,8 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
             if isinstance(ch, discord.DMChannel)
             else f"{m.author.display_name} · {channelName(ch)}"
         )
-        asyncio.create_task(notify.send(title, snippet(m.clean_content or "[attachment]", 200)))
+        body = snippet(m.clean_content or "[attachment]", 200) if self.cfg.get("notify_preview", True) else "New message"
+        asyncio.create_task(notify.send(title, body))
 
     def onDiscordEdit(self, payload) -> None:
         cached = self.msgCache.get(payload.channel_id)

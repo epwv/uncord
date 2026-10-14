@@ -33,10 +33,14 @@ NAME_COLOURS = [
 PRIVATE = (discord.DMChannel, discord.GroupChannel)
 TEXTLIKE = (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)
 
-LINK = Style(color="blue", underline=True)
+#discords own colours
+BLURPLE = "#5865f2"
+LINK = Style(color="#00a8fc", underline=True)
 EMOJI_STYLE = Style(color="yellow")
-MENTION = Style(color="cyan", bold=True)
-MENTION_ME = Style(color="black", bgcolor="yellow", bold=True)
+MENTION = Style(color="#c9cdfb", bgcolor="#3c4270")
+MENTION_ME = Style(color="white", bgcolor=BLURPLE, bold=True)
+TAG = Style(color="white", bgcolor=BLURPLE, bold=True)
+GUILD_TAG = Style(color="white", bgcolor="#4e5058", bold=True)
 CODE = Style(color="cyan")
 SPOILER = Style(color="bright_black", bgcolor="bright_black")
 
@@ -127,10 +131,10 @@ def nameColour(user) -> str:
 
 
 STATUS_DOT = {
-    "online": ("●", "green"),
-    "idle": ("◐", "yellow"),
-    "dnd": ("⊖", "red"),
-    "streaming": ("●", "magenta"),
+    "online": ("●", "#23a55a"),
+    "idle": ("◐", "#f0b232"),
+    "dnd": ("⊖", "#f23f43"),
+    "streaming": ("●", "#593695"),
 }
 STATUS_NAME = {
     "online": "Online",
@@ -167,17 +171,26 @@ def isBlocked(u) -> bool:
         return False
 
 
-def platforms(u) -> list:
-    src = u if hasattr(u, "mobile_status") else getattr(u, "relationship", None)
-    out = []
-    for attr, icon, name in PLATFORMS:
+#guild presence first then the friend one, a member with no guild presence yet can still be a friend whos online
+def _clientStatuses(u):
+    for get in (lambda: u.presence, lambda: u.relationship.presence,
+                lambda: u._state._presences.get(u.id)):
         try:
-            st = str(getattr(src, attr))
+            p = get()
         except Exception:
             continue
-        if st not in ("offline", "None", "invisible"):
-            out.append((icon, name))
-    return out
+        if p is not None:
+            yield p.client_status
+
+
+def platforms(u) -> list:
+    for cs in _clientStatuses(u):
+        #getattr with a default, copied client statuses can be missing embedded
+        out = [(icon, name) for attr, icon, name in PLATFORMS
+               if getattr(cs, attr.split("_")[0], None) not in (None, "offline", "invisible")]
+        if out:
+            return out
+    return []
 
 
 def platformIcons(u) -> Text:
@@ -308,6 +321,21 @@ class MdContext:
         self.reveal = revealSpoilers
 
 
+#[text](link) can say one site and open another, show where it really goes
+def maskedHint(label: str, url: str) -> Text:
+    from .safety import domain
+
+    real = domain(url)
+    shown = re.search(r"(?:https?://)?((?:[\w-]+\.)+[a-z]{2,})", label, re.I)
+    if shown and real:
+        claimed = shown.group(1).lower()
+        claimed = claimed[4:] if claimed.startswith("www.") else claimed
+        if claimed != real and not real.endswith("." + claimed):
+            return Text(f" ⚠ goes to {real}", style="bold #f23f43")
+        return Text()
+    return Text(f" ({real})", style="bright_black") if SHOW_LINK_DOMAINS and real else Text()
+
+
 def mdInline(text: str, ctx: MdContext, base: Style = Style()) -> Text:
     out = Text()
     pos = 0
@@ -337,6 +365,7 @@ def mdInline(text: str, ctx: MdContext, base: Style = Style()) -> Text:
             out.append_text(mdInline(g["s"], ctx, base + Style(strike=True)))
         elif g["ltext"] is not None:
             out.append_text(link(g["ltext"], g["lurl"]))
+            out.append_text(maskedHint(g["ltext"], g["lurl"]))
         elif g["aurl"] is not None or g["url"] is not None:
             url = g["aurl"] or g["url"]
             out.append_text(link(shortUrl(url), url))
@@ -472,7 +501,37 @@ class Bar:
         return Measurement(3, options.max_width)
 
 
+#discord's account and safety notices come as an embed of raw fields meant for the app to lay out
+NOTICE_KEYS = {"client_version_message", "header", "body", "icon_type", "theme", "ctas", "classification_id"}
+
+
+def noticeBlock(e) -> Optional["Bar"]:
+    fields = {str(f.name): str(f.value) for f in getattr(e, "fields", []) or []}
+    if len(NOTICE_KEYS & fields.keys()) < 3:
+        return None
+    rows = []
+    if e.title:
+        rows.append(Text(e.title, style="bold"))
+    if fields.get("header"):
+        rows.append(Text(fields["header"], style="bold #f0b232"))
+    if fields.get("body"):
+        rows.append(Text(re.sub(r"\s{2,}", " ", fields["body"]).strip()))
+    links = [(k, v) for k, v in fields.items() if k.endswith("_link") and v.startswith("http")]
+    for k, url in links:
+        label = k.removesuffix("_link").replace("_", " ").capitalize()
+        rows.append(link(f"{label} ↗", url))
+    try:
+        when = datetime.fromtimestamp(float(fields["timestamp"]))
+        rows.append(Text(when.strftime("%d %b %Y %H:%M"), style="bright_black"))
+    except (KeyError, ValueError, OverflowError, OSError):
+        pass
+    return Bar(Group(*rows), BLURPLE)
+
+
 def embedBlock(e, ctx: "MdContext", previewed=frozenset(), hideDesc: bool = False):
+    notice = noticeBlock(e)
+    if notice is not None:
+        return notice
     rows = []
     provider = getattr(getattr(e, "provider", None), "name", None)
     if provider:
@@ -482,7 +541,7 @@ def embedBlock(e, ctx: "MdContext", previewed=frozenset(), hideDesc: bool = Fals
         rows.append(link(author.name, author.url, Style(bold=True)) if getattr(author, "url", None)
                     else Text(author.name, style="bold"))
     if e.title:
-        rows.append(link(e.title, e.url, Style(bold=True, color="blue")) if e.url
+        rows.append(link(e.title, e.url, Style(bold=True, color="#00a8fc")) if e.url
                     else Text(e.title, style="bold"))
     if e.description and not hideDesc:
         desc = e.description if len(e.description) <= 1500 else e.description[:1499] + "…"
@@ -532,7 +591,7 @@ def reactionText(reactions) -> Text:
     for i, r in enumerate(reactions):
         e = r.emoji
         label = f":{e.name}:" if not isinstance(e, str) and getattr(e, "id", None) else str(e)
-        style = Style(color="black", bgcolor="cyan", bold=True) if r.me else Style(reverse=True, dim=True)
+        style = Style(color="white", bgcolor=BLURPLE, bold=True) if r.me else Style(reverse=True, dim=True)
         t.append(f" {label} {r.count} ", style=style + Style(meta={"reaction": i}))
         t.append(" ")
     t.append(" + ", style=Style(color="bright_black", meta={"reaction": -1}))
@@ -565,7 +624,7 @@ def nameBadges(user, webhook: bool = False) -> Text:
         pg = user.primary_guild
         if pg.tag and pg.identity_enabled is not False:
             t.append(" ")
-            t.append(f" {pg.tag} ", style=Style(color="white", bgcolor="grey30", bold=True))
+            t.append(f" {pg.tag} ", style=GUILD_TAG)
     except Exception:
         pass
     if webhook:
@@ -581,7 +640,7 @@ def nameBadges(user, webhook: bool = False) -> Text:
     else:
         return t
     t.append(" ")
-    t.append(f" {label} ", style=Style(color="white", bgcolor="blue", bold=True))
+    t.append(f" {label} ", style=TAG)
     return t
 
 
@@ -590,6 +649,7 @@ SHOW_USERNAMES = True
 SHOW_PLATFORMS = True
 REPLY_TIMESTAMP = True
 UNINDENT = True
+SHOW_LINK_DOMAINS = True
 
 
 def renderMessage(
@@ -644,6 +704,8 @@ def renderMessage(
             body.append(f" @{uname}", style="bright_black")
         #bot command replies also have a webhook id but they come with an application id
         body.append_text(nameBadges(m.author, webhook=m.webhook_id is not None and m.application_id is None))
+        if not m.webhook_id:
+            body.append_text(platformIcons(m.author))
         body.append("  ")
     content = m.content
     if previewed and content and content.strip() in previewed:

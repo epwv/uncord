@@ -76,29 +76,9 @@ def _load() -> bool:
 
 
 #an all background sixel means encoding went wrong
-def hasPixels(sixel: str) -> bool:
-    body = sixel[sixel.find("q") + 1 :]
-    end = body.find("\x1b")
-    if end >= 0:
-        body = body[:end]
-    i = 0
-    n = len(body)
-    while i < n:
-        c = body[i]
-        if c == "#":
-            i += 1
-            while i < n and (body[i].isdigit() or body[i] == ";"):
-                i += 1
-            continue
-        if c == '"':
-            i += 1
-            while i < n and (body[i].isdigit() or body[i] == ";"):
-                i += 1
-            continue
-        if "@" <= c <= "~":
-            return True
-        i += 1
-    return False
+from . import native  # noqa: E402
+
+hasPixels = native.hasPixels
 
 
 def available() -> bool:

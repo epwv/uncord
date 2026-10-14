@@ -15,7 +15,7 @@ from . import media
 from . import golive, streamview
 from . import voice as vmod
 from .fmt import PRIVATE, channelName, isVoice, snippet
-from .screens import Picker, UserMenu, VoiceSettings
+from .screens import Picker, UserMenu
 
 from .panels import ChatInput, VoiceBar
 
@@ -640,35 +640,30 @@ class CallsMixin:
             self.notify("Camera off.")
         self.updateVoicebar()
 
+    #f9 opens settings on the voice tab
     def action_voice_settings(self) -> None:
-        devices = vmod.listDevices()
-        if self.vc is None:
-            self.startMicTest()
+        self.action_settings("voice")
 
-        def level():
-            if self.vc is not None:
-                return self.vc.levelDb if self.vc.mic is not None else None
-            m = self._testMic
-            if m is None:
-                return None
-            db = vmod.rmsToDb(m.level)
-            self._testLevels.append(db)
-            del self._testLevels[:-50]
-            return db
+    #mic level for the meter, from the call or a test mic when not in one
+    def micLevelDb(self) -> Optional[float]:
+        if self.vc is not None:
+            return self.vc.levelDb if self.vc.mic is not None else None
+        m = self._testMic
+        if m is None:
+            return None
+        db = vmod.rmsToDb(m.level)
+        self._testLevels.append(db)
+        del self._testLevels[:-50]
+        return db
 
-        def gate():
-            if self.vc is not None:
-                return self.vc.thresholdDb()
-            if self.cfg.get("auto_sensitivity", True):
-                lv = sorted(self._testLevels)
-                floor = lv[len(lv) // 5] if len(lv) >= 25 else -60.0
-                return max(-65.0, min(-25.0, floor + 12.0))
-            return float(self.cfg.get("sensitivity_db", -50))
-
-        self.push_screen(
-            VoiceSettings(devices, self.cfg, self.applyVoiceSetting, level, gate),
-            lambda _r: self.stopMicTest(),
-        )
+    def micGateDb(self) -> float:
+        if self.vc is not None:
+            return self.vc.thresholdDb()
+        if self.cfg.get("auto_sensitivity", True):
+            lv = sorted(self._testLevels)
+            floor = lv[len(lv) // 5] if len(lv) >= 25 else -60.0
+            return max(-65.0, min(-25.0, floor + 12.0))
+        return float(self.cfg.get("sensitivity_db", -50))
 
     def startMicTest(self) -> None:
         self.stopMicTest()

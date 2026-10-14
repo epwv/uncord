@@ -56,8 +56,8 @@ class CommandsMixin:
   Ctrl+S status (online/idle/dnd/invisible, custom status)   Ctrl+U friends   F4 inbox (unreads and mentions)
 
 [b]Voice[/b]
-  Select a 🔊 channel to join · F5 call this DM/group or answer · F6 mute · F7 deafen · F8 leave · F9 voice settings
-  Bottom-left panel: ✆ disconnect, 🎙 mute, 🎧 deafen, ⚙ voice settings (devices, volumes, input sensitivity)
+  Select a 🔊 channel to join · F5 call this DM/group or answer · F6 mute · F7 deafen · F8 leave · F9 voice and video settings
+  Bottom-left panel: ✆ disconnect, 🎙 mute, 🎧 deafen, ⚙ settings (tabs for appearance, voice, privacy, plugins…)
   Right-click (or click in the call strip) a person for their User Volume slider (0-200%) and local mute
   /vad <n> mic sensitivity (0 = open mic) · /vol <0-300> output volume · /sfx on|off call sounds
   /voicestats shows what the audio pipeline is doing (packets in/out, mic level)
@@ -69,7 +69,7 @@ class CommandsMixin:
   /share [720p30|1080p30|1080p60|1440p60|stop|stats]  (F10 shares your screen in the call)
   /watch \\[name|stop|stats|popout]  watch someone's screen share or camera (F11, or click 🔴LIVE / 📷)
   /camera  turn your webcam on or off (F12)
-  /settings (F3)  appearance, line spacing, notifications, chat, voice, plugins, updates
+  /settings (F3 or ⚙)  appearance, notifications, chat, voice and video, privacy, plugins, about
   /plugins  switch extras on and off: MessageLogger, ClearURLs, FakeNitro, SilentTyping, CallTimer and more
   Start a message with // to send a literal slash."""
 

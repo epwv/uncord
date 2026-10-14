@@ -111,11 +111,18 @@ def main() -> None:
     if args and args[0] == "--login":
         loginFlow()
         args = []
+    from .safety import RedactTokens, private
+
+    private(CONFIG, isDir=True)
+    private(TOKEN_FILE)
     token = getToken()
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    private(LOG_FILE.parent, isDir=True)
     logging.basicConfig(
         filename=LOG_FILE, level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
+    private(LOG_FILE)
+    for h in logging.getLogger().handlers:
+        h.addFilter(RedactTokens())
     #gateway debug is huge so only keep the e2ee (dave mls) handshake lines from it
     gw = logging.getLogger("discord.gateway")
     gw.setLevel(logging.DEBUG)

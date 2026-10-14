@@ -15,6 +15,9 @@ from discord.http import Route
 log = logging.getLogger("uncord.rpc")
 
 HANDSHAKE, FRAME, CLOSE, PING, PONG = 0, 1, 2, 3, 4
+MAX_FRAME = 64 * 1024  #real activity updates are a few hundred bytes
+MAX_TEXT = 128
+MAX_CLIENTS = 8
 
 
 def _socketDir() -> str:
@@ -37,6 +40,7 @@ class RpcServer:
         self.server = None
         self.path: Optional[str] = None
         self.names: dict = {}
+        self.clients = 0
         self.owner = None  #the connection whose activity is showing
 
     async def start(self) -> str:
@@ -55,7 +59,12 @@ class RpcServer:
                         os.unlink(path)  #left over from a crash
                     except OSError:
                         continue
-            self.server = await asyncio.start_unix_server(self._serve, path)
+            old = os.umask(0o077)
+            try:
+                self.server = await asyncio.start_unix_server(self._serve, path)
+            finally:
+                os.umask(old)
+            os.chmod(path, 0o600)  #only your own apps can talk to it
             self.path = path
             log.info("rich presence listening on %s", path)
             return "ok"
@@ -82,13 +91,22 @@ class RpcServer:
     async def _serve(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         me = object()
         appId = None
+        self.clients += 1
         try:
+            if self.clients > MAX_CLIENTS:
+                return
             while True:
-                head = await reader.readexactly(8)
+                head = await asyncio.wait_for(reader.readexactly(8), 600)
                 op, size = struct.unpack("<II", head)
-                data = json.loads((await reader.readexactly(size)) or b"{}")
+                if size > MAX_FRAME:
+                    break
+                data = json.loads((await asyncio.wait_for(reader.readexactly(size), 10)) or b"{}")
+                if not isinstance(data, dict):
+                    break
                 if op == HANDSHAKE:
                     appId = str(data.get("client_id") or "")
+                    if not appId.isdigit() or len(appId) > 20:
+                        break
                     u = self.client.user
                     writer.write(_pack(FRAME, {"cmd": "DISPATCH", "evt": "READY", "nonce": None, "data": {
                         "v": 1,
@@ -101,8 +119,9 @@ class RpcServer:
                     cmd, nonce = data.get("cmd"), data.get("nonce")
                     reply = None
                     if cmd == "SET_ACTIVITY" and appId:
-                        raw = (data.get("args") or {}).get("activity")
-                        act = await self._activity(appId, raw) if raw else None
+                        args = data.get("args")
+                        raw = args.get("activity") if isinstance(args, dict) else None
+                        act = await self._activity(appId, raw) if isinstance(raw, dict) else None
                         self.owner = me if act else None
                         self.onActivity(act)
                         reply = raw
@@ -112,30 +131,41 @@ class RpcServer:
                 elif op == CLOSE:
                     break
                 await writer.drain()
-        except (asyncio.IncompleteReadError, ConnectionError, ValueError):
+        except (asyncio.IncompleteReadError, ConnectionError, ValueError, asyncio.TimeoutError):
             pass
         except Exception:
             log.debug("rpc connection", exc_info=True)
         finally:
+            self.clients -= 1
             if self.owner is me:
                 self.owner = None
                 self.onActivity(None)  #app closed so its activity goes too
             writer.close()
 
     async def _activity(self, appId: str, raw: dict) -> discord.Activity:
-        ts = dict(raw.get("timestamps") or {})
+        def text(v):
+            return v[:MAX_TEXT] if isinstance(v, str) and v else None
+
+        def small(v, keys):
+            return {k: v[k] for k in keys if k in v} if isinstance(v, dict) else None
+
+        ts = {k: v for k, v in (small(raw.get("timestamps"), ("start", "end")) or {}).items()
+              if isinstance(v, (int, float)) and 0 <= v < 1e14}
         for k, v in list(ts.items()):
-            if isinstance(v, (int, float)) and v < 10**12:
-                ts[k] = int(v * 1000)  #apps send seconds discord wants ms
-        buttons = [b.get("label", "") for b in raw.get("buttons") or [] if isinstance(b, dict)]
+            ts[k] = int(v * 1000) if v < 10**12 else int(v)  #apps send seconds discord wants ms
+        assets = {k: text(v) for k, v in (small(raw.get("assets"), ("large_image", "large_text", "small_image",
+                                                                     "small_text")) or {}).items() if text(v)}
+        party = small(raw.get("party"), ("id", "size"))
+        buttons = [text(b.get("label")) for b in (raw.get("buttons") or [])[:2] if isinstance(b, dict)]
+        kind = raw.get("type", 0)
         return discord.Activity(
-            type=discord.ActivityType(raw.get("type", 0)),
+            type=discord.ActivityType(kind if kind in (0, 2, 3, 5) else 0),
             name=await self._appName(appId),
             application_id=int(appId),
-            details=raw.get("details"),
-            state=raw.get("state"),
+            details=text(raw.get("details")),
+            state=text(raw.get("state")),
             timestamps=ts or None,
-            assets=raw.get("assets") or None,
-            party=raw.get("party") or None,
-            buttons=buttons or None,
+            assets=assets or None,
+            party=party or None,
+            buttons=[b for b in buttons if b] or None,
         )

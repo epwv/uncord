@@ -41,9 +41,12 @@ class Config(dict):
 
     def save(self) -> None:
         try:
-            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
             tmp = CONFIG_FILE.with_suffix(".tmp")
-            tmp.write_text(json.dumps(self, indent=2, ensure_ascii=False))
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
+                f.write(json.dumps(self, indent=2, ensure_ascii=False))
+            os.chmod(tmp, 0o600)
             tmp.replace(CONFIG_FILE)
         except OSError:
             pass

@@ -297,7 +297,10 @@ class AttachMixin:
         if shutil.which("wl-copy"):
 
             async def go():
-                p = await asyncio.create_subprocess_exec("wl-copy", stdin=asyncio.subprocess.PIPE)
+                #wl-copy stays running to serve the clipboard so it mustnt keep our terminal open
+                p = await asyncio.create_subprocess_exec("wl-copy", stdin=asyncio.subprocess.PIPE,
+                                                         stdout=asyncio.subprocess.DEVNULL,
+                                                         stderr=asyncio.subprocess.DEVNULL, start_new_session=True)
                 await p.communicate(text.encode())
 
             asyncio.create_task(go())

@@ -5,11 +5,19 @@ import asyncio
 import shutil
 from typing import Optional
 
+from .safety import clean
+
 _ADDR = dict(object_path="/org/freedesktop/Notifications", bus_name="org.freedesktop.Notifications",
              interface="org.freedesktop.Notifications")
 
 
+#notification daemons read the body as markup so escape it
+def _plain(s: str) -> str:
+    return clean(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 async def send(title: str, body: str, urgent: bool = False) -> bool:
+    title, body = clean(title), _plain(body)
     try:
         from jeepney import DBusAddress, new_method_call
         from jeepney.io.asyncio import open_dbus_router
@@ -24,7 +32,7 @@ async def send(title: str, body: str, urgent: bool = False) -> bool:
     tool = shutil.which("notify-send")
     if tool is None:
         return False
-    args = [tool, "-a", "uncord"] + (["-u", "critical"] if urgent else []) + [title, body]
+    args = [tool, "-a", "uncord"] + (["-u", "critical"] if urgent else []) + ["--", title, body]
     proc = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.DEVNULL,
                                                 stderr=asyncio.subprocess.DEVNULL)
     await proc.wait()

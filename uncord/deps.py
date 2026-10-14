@@ -29,11 +29,17 @@ def findLib(env: str, name: str, soname: str) -> Optional[str]:
     override = os.environ.get(env, "")
     if override:
         return override if os.path.exists(override) else None
+    #plain dlopen first, find_library runs ldconfig or gcc and is slow
+    try:
+        ctypes.CDLL(soname)
+        return soname
+    except OSError:
+        pass
     found = ctypes.util.find_library(name)
-    for cand in filter(None, [found, soname]):
+    if found:
         try:
-            ctypes.CDLL(cand)
-            return cand
+            ctypes.CDLL(found)
+            return found
         except OSError:
             pass
     for d in LIB_DIRS:
@@ -65,8 +71,15 @@ def findCmd(env: str, name: str) -> Optional[List[str]]:
 FFMPEG = findBin("UNCORD_FFMPEG", "ffmpeg")
 MPV = findBin("UNCORD_MPV", "mpv")
 GSR = findCmd("UNCORD_GSR", "gpu-screen-recorder")
-OPUS = findLib("UNCORD_OPUS", "opus", "libopus.so.0")
-CHAFA = findLib("UNCORD_CHAFA", "chafa", "libchafa.so.0")
+_LIBS = {"OPUS": ("UNCORD_OPUS", "opus", "libopus.so.0"), "CHAFA": ("UNCORD_CHAFA", "chafa", "libchafa.so.0")}
+
+
+#libraries are looked up the first time something asks so startup doesnt wait on them
+def __getattr__(name: str):
+    if name in _LIBS:
+        value = globals()[name] = findLib(*_LIBS[name])
+        return value
+    raise AttributeError(name)
 
 
 def doctor() -> int:
@@ -78,6 +91,7 @@ def doctor() -> int:
 
     print(f"uncord on python {sys.version.split()[0]}\n")
     print("needed for voice, video and gifs")
+    OPUS, CHAFA = __getattr__("OPUS"), __getattr__("CHAFA")
     row(bool(FFMPEG), "ffmpeg", FFMPEG or "not found", "install ffmpeg (or set UNCORD_FFMPEG)")
     row(bool(OPUS), "libopus", OPUS or "not found", "install opus / libopus0 (or set UNCORD_OPUS)")
     pw = all(shutil.which(t) for t in ("pw-play", "pw-record"))

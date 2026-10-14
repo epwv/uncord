@@ -17,7 +17,7 @@ from textual.strip import Strip
 from textual.widget import Widget
 from textual.widgets import Static
 
-from . import chafasixel
+from . import chafasixel, native
 
 log = logging.getLogger("uncord")
 _NULL = Style()
@@ -259,14 +259,7 @@ class SixelMedia(Widget, can_focus=False):
 #each frame is uploaded once as a png then drawn with placeholder cells whose colour is the image id
 #so textual treats it like text and scrolling or repainting needs no special handling
 
-_PLACEHOLDER = "\U0010EEEE"
 _KITTY_IDS = iter(range(random.randint(1 << 16, 1 << 22), 1 << 24))
-
-
-def _diacritic(n: int) -> str:
-    from textual_image.renderable.tgp import _NUMBER_TO_DIACRITIC
-
-    return chr(_NUMBER_TO_DIACRITIC[n])
 
 
 def kittyMessage(payload: str = "", **keys) -> str:
@@ -331,8 +324,7 @@ class KittyMedia(SixelMedia):
             if line >= self.rows:
                 out.append(Strip.blank(crop.width, style))
                 continue
-            row = _diacritic(line)
-            text = "".join(_PLACEHOLDER + row + _diacritic(c) for c in range(crop.x, crop.x + crop.width))
+            text = native.placeholderRow(line, crop.x, crop.width)
             out.append(Strip([Segment(text, colour)], cell_length=crop.width))
         return out
 

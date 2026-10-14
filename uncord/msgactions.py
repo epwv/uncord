@@ -15,7 +15,7 @@ from textual import work
 from textual.widgets import Static
 
 from . import emojis as emo
-from . import gifs, media, voicemsg
+from . import gifs, media, safety, voicemsg
 from .fmt import PRIVATE, snippet
 from .screens import Confirm, GifPicker, ImageScreen, Picker, ProfileScreen, TextScreen
 
@@ -44,15 +44,31 @@ class MessageActionsMixin:
     async def fetchCdn(self, url: str) -> bytes:
         return await self.client.http.get_from_cdn(url)
 
-    def openExternal(self, url: str) -> None:
+    #only http and https go to the browser, anything else gets copied so you can look at it first
+    def openExternal(self, url: str, confirmed: bool = False) -> None:
+        safe = safety.safeUrl(url)
+        if safe is None:
+            self.copyText(url)
+            self.notify("That isn't a web link so it wasn't opened. Copied it instead.", severity="warning",
+                        markup=False)
+            return
+        if self.cfg.get("confirm_links", False) and not confirmed:
+            self.push_screen(Confirm(f"Open {safety.domain(safe)}?", safe),
+                             lambda yes: yes and self.openExternal(safe, confirmed=True))
+            return
         if shutil.which("xdg-open"):
             asyncio.create_task(
                 asyncio.create_subprocess_exec(
-                    "xdg-open", url, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+                    "xdg-open", safe, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+                    start_new_session=True
                 )
             )
         else:
-            self.copyText(url)
+            self.copyText(safe)
+
+    #links clicked inside textual come through here too
+    def open_url(self, url: str, *, new_tab: bool = True) -> None:
+        self.openExternal(url)
 
     def audioAttachments(self, m: discord.Message) -> list:
         return [

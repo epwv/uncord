@@ -105,7 +105,7 @@ class SidePanel(Static):
             "leave": app.action_leave_voice,
             "mute": app.action_toggle_mute,
             "deafen": app.action_toggle_deafen,
-            "settings": app.action_voice_settings,
+            "settings": app.action_settings,
             "status": app.action_status,
             "call": app.gotoCall,
         }[act]()

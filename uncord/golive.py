@@ -19,7 +19,7 @@ from discord.voice_media import VoiceCodec, VoiceStream, VoiceStreamResolution
 from discord.voice_state import ConnectionFlowState, VoiceConnectionState
 
 from .deps import FFMPEG, GSR, MPV
-from . import rtpvideo
+from . import native, rtpvideo
 
 try:
     import davey
@@ -103,23 +103,7 @@ def listMonitors() -> List[Tuple[str, str]]:
 
 
 #splits an h264 annex b stream on 00 00 01 start codes into nal units
-def splitAnnexb(buf: bytes) -> List[bytes]:
-    nals, i, n = [], 0, len(buf)
-    starts = []
-    while True:
-        j = buf.find(b"\x00\x00\x01", i)
-        if j < 0:
-            break
-        starts.append(j)
-        i = j + 3
-    for k, s in enumerate(starts):
-        begin = s + 3
-        end = starts[k + 1] if k + 1 < len(starts) else n
-        if k + 1 < len(starts) and end > begin and buf[end - 1] == 0:
-            end -= 1
-        if end > begin:
-            nals.append(buf[begin:end])
-    return nals
+splitAnnexb = native.splitAnnexb
 
 
 #one byte rtp header extensions the same ones the desktop client sends
@@ -419,6 +403,7 @@ class _Capture:
         out = self.ffp.stdout
         buf = b""
         au: List[bytes] = []
+        hasSlice = False
         while not self._stop:
             chunk = os.read(out.fileno(), 1 << 16)
             if not chunk:
@@ -434,13 +419,14 @@ class _Capture:
                 t = nal[0] & 0x1F
                 if t in (6, 9, 12):
                     continue
-                hasSlice = any((x[0] & 0x1F) in (1, 5) for x in au)
                 #new picture at sps pps after a slice or at first mb 0
                 newPic = hasSlice and (t in (7, 8) or (t in (1, 5) and len(nal) > 1 and nal[1] & 0x80))
                 if newPic:
                     self.feed(au)
                     au = []
+                    hasSlice = False
                 au.append(nal)
+                hasSlice = hasSlice or t in (1, 5)
         if not self._stop:
             try:
                 self.gsr.wait(timeout=2)
@@ -528,18 +514,7 @@ class _Sender:
         ts = int((time.monotonic() - self.t0) * CLOCK) & 0xFFFFFFFF
         self.lastTs = ts
         #small nals go as is big ones get split into fu-a fragments
-        payloads = []
-        for nal in nals:
-            if len(nal) <= MTU_PAYLOAD:
-                payloads.append(nal)
-                continue
-            ind = (nal[0] & 0xE0) | 28
-            typ = nal[0] & 0x1F
-            body = nal[1:]
-            for off in range(0, len(body), MTU_PAYLOAD):
-                start, end = off == 0, off + MTU_PAYLOAD >= len(body)
-                fu = (0x80 if start else 0) | (0x40 if end else 0) | typ
-                payloads.append(bytes((ind, fu)) + body[off : off + MTU_PAYLOAD])
+        payloads = native.fuaPayloads(nals, MTU_PAYLOAD)
         absSend = (int((time.time() % 64) * (1 << 18)) & 0xFFFFFF).to_bytes(3, "big")
         ext = _extPayload(((3, absSend), (6, b"\x00\x00\x00"), (11, b"100")))
         with self._lock:
@@ -843,18 +818,15 @@ class _VideoReceiver:
     #rtx resends carry the original seq in their first 2 bytes
     def _onPacket(self, data: bytes) -> None:
         conn = self.conn
-        if conn is None or len(data) < 16 or (data[0] >> 6) != 2:
+        head = native.rtpHeader(data) if conn is not None else None
+        if head is None or 200 <= data[1] <= 206:
             return
-        if 200 <= data[1] <= 206:
-            return
-        ssrc = struct.unpack_from(">I", data, 8)[0]
-        if ssrc == conn.ssrc or not self._wants(ssrc, data[1] & 0x7F):
+        hlen, pt, marker, seq, ts, ssrc = head
+        if ssrc == conn.ssrc or not self._wants(ssrc, pt):
             return
         self.stats["rx"] += 1
         try:
-            cc = data[0] & 0x0F
             hasExt = bool(data[0] & 0x10)
-            hlen = 12 + 4 * cc + (4 if hasExt else 0)
             header = data[:hlen]
             plain = self._box().decrypt(data[hlen:-4], header, data[-4:] + b"\x00" * 20)
             if hasExt:
@@ -864,10 +836,6 @@ class _VideoReceiver:
         except Exception:
             self.stats["transport_fail"] += 1
             return
-        pt = data[1] & 0x7F
-        marker = bool(data[1] & 0x80)
-        seq = struct.unpack_from(">H", data, 2)[0]
-        ts = struct.unpack_from(">I", data, 4)[0]
         if not plain:
             return
         hs = self.highestSeq.get(ssrc)
