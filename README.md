@@ -174,7 +174,7 @@ Thanks to [hakuxyz](https://github.com/hakuxyz) for help tracking down screen sh
 ## Todo
 
 - [ ] Put `uncord` and `uncord-git` on the AUR (AUR sign-ups are down, the packages are ready in `packaging/aur/`)
-- [ ] Get uncord into nixpkgs (pull request open)
+- [ ] Get uncord into nixpkgs ([pull request](https://github.com/NixOS/nixpkgs/pull/574061))
 
 ## License
 
