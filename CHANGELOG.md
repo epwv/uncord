@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.75k (2026-10-14)
+
+- Calls: joining no longer asks Discord to pause every incoming stream, which could leave you hearing nobody. Only cameras you stop watching get paused
+- The voice log shows which kinds of packets arrive, to pin down audio problems faster
+
 ## 0.75h (2026-10-14)
 
 - The installer adds `~/.local/bin` to your PATH (bash, zsh, fish or `~/.profile`) so `uncord` is found, and says how to start it right away. Uninstalling removes the line

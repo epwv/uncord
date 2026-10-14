@@ -305,11 +305,16 @@ class UncordVoiceClient(discord.VoiceClient):
     def sealRtp(self, header: bytes, payload: bytes) -> bytes:
         return self._encrypt_aead_xchacha20_poly1305_rtpsize(header, payload)
 
+    #cameras we watch at full quality, ones we stop watching paused
+    #never send any 0 because that default covers every stream and can pause call audio too
     async def setVideoWants(self, wants: dict) -> None:
-        #nobody elses video unless were watching a camera
         ws = self._connection.ws
-        if ws is not None and ws is not discord.utils.MISSING:
-            await ws.media_sink_wants(wants, any=100 if wants else 0)
+        old = getattr(self, "_videoWanted", set())
+        self._videoWanted = set(wants)
+        data = {s: 0 for s in old - set(wants)}
+        data.update(wants)
+        if data and ws is not None and ws is not discord.utils.MISSING:
+            await ws.media_sink_wants(data)
 
     def __init__(self, client: discord.Client, channel) -> None:
         self._sealLock = threading.Lock()
@@ -342,6 +347,7 @@ class UncordVoiceClient(discord.VoiceClient):
         self._speaking = False
         self.rxErrors = 0
         self.stats: collections.Counter = collections.Counter()
+        self.rxTypes: collections.Counter = collections.Counter()  #payload types that arrived, 120 is call audio
         self.userVolume: Dict[int, float] = {}
         self.level = 0
 
@@ -399,7 +405,6 @@ class UncordVoiceClient(discord.VoiceClient):
     def startAudio(self) -> None:
         self.speaker = Speaker(self.outputDevice)
         self._connection.add_socket_listener(self._onPacket)
-        self.loop.create_task(self.setVideoWants({}))
         self.mic = Mic(self.inputDevice, self.inputGain)
         self.encoder = opus.Encoder()
         self._txStop.clear()
@@ -451,8 +456,11 @@ class UncordVoiceClient(discord.VoiceClient):
                 quiet = time.monotonic() - getattr(self, "lastUdp", 0)
                 spk = self.speaker
                 log.info(
-                    "voice rx health: last udp %.1fs ago, reader %s, speaker thread %s, speaker queues %s",
+                    "voice rx health: last udp %.1fs ago, packet types %s, deafened %s, reader %s, speaker thread %s, "
+                    "speaker queues %s",
                     quiet,
+                    dict(self.rxTypes),
+                    self.selfDeafened,
                     "alive" if reader.is_alive() else "DEAD",
                     "alive" if spk and spk.thread.is_alive() else "DEAD",
                     {str(k): len(q) for k, q in (spk.queues.items() if spk else [])},
@@ -523,6 +531,7 @@ class UncordVoiceClient(discord.VoiceClient):
         if 200 <= data[1] <= 204:
             return
         #payload type 120 is opus
+        self.rxTypes[data[1] & 0x7F] += 1
         if (data[1] & 0x7F) != 0x78:
             return
         ssrc = struct.unpack_from(">I", data, 8)[0]
