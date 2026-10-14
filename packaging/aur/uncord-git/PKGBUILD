@@ -1,7 +1,7 @@
 # Maintainer: epwv <281472559+epwv@users.noreply.github.com>
 pkgname=uncord-git
 _pkgname=uncord
-pkgver=0.75d.r0.g0000000
+pkgver=0.75e.r0.g0000000
 pkgrel=1
 pkgdesc="Discord in your terminal, with voice calls, inline images and screen sharing"
 arch=('x86_64' 'aarch64')
