@@ -13,6 +13,10 @@ Questions or ideas? Join the [uncord Discord server](https://discord.gg/fubfK8C6
 
 - [Features](#features)
 - [Install](#install)
+  - [Install script (most distros)](#install-script-most-distros)
+  - [Arch (AUR)](#arch-aur)
+  - [Nix](#nix)
+  - [By hand](#by-hand)
 - [Logging in](#logging-in)
 - [Keys](#keys)
 - [Voice, video and screen sharing](#voice-video-and-screen-sharing)
