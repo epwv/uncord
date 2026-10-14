@@ -24,6 +24,7 @@ Questions or ideas? Join the [uncord Discord server](https://discord.gg/fubfK8C6
 - [Privacy and security](#privacy-and-security)
 - [Troubleshooting](#troubleshooting)
 - [For developers](#for-developers)
+- [Todo](#todo)
 
 ## Features
 
@@ -61,12 +62,12 @@ Update with `uncord --update`. uncord also tells you when an update is out.
 
 ### Arch (AUR)
 
+Not on the AUR yet (see [Todo](#todo)). Use the install script for now. Once it's up:
+
 ```sh
 yay -S uncord        # latest release
 yay -S uncord-git    # latest commit
 ```
-
-Any AUR helper works (`paru -S uncord` too). Update it with your helper rather than `uncord --update`.
 
 ### Nix
 
@@ -179,6 +180,11 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 | `packaging/` | AUR and Nix packages |
 
 Thanks to [hakuxyz](https://github.com/hakuxyz) for help tracking down screen sharing bugs.
+
+## Todo
+
+- [ ] Put `uncord` and `uncord-git` on the AUR (AUR sign-ups are down, the packages are ready in `packaging/aur/`)
+- [ ] Get uncord into nixpkgs (pull request open)
 
 ## License
 
