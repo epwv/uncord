@@ -8,6 +8,13 @@ dynamic = ["version"]
 description = "A Discord client for the terminal, with voice, images and screen sharing"
 readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "MIT" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Environment :: Console",
+    "Topic :: Communications :: Chat",
+]
 authors = [{ name = "epwv", email = "281472559+epwv@users.noreply.github.com" }]
 dependencies = [
     "discord.py-self[voice] @ git+https://github.com/dolfies/discord.py-self@2ba64a9a997e151a9c259984e0a179b1fdf4aff4",

@@ -6,7 +6,7 @@ pkgrel=1
 pkgdesc="Discord in your terminal, with voice calls, inline images and screen sharing"
 arch=('x86_64' 'aarch64')
 url="https://github.com/epwv/uncord"
-license=('unknown')
+license=('MIT')
 depends=('python' 'ffmpeg' 'opus' 'pipewire')
 makedepends=('python-pip' 'gcc')
 optdepends=('chafa: faster, nicer inline images'
@@ -49,4 +49,5 @@ Keywords=discord;chat;voice;
 DESKTOP
     install -Dm644 "$srcdir/$_pkgname-$pkgver/assets/icon.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/uncord.svg"
     install -Dm644 "$srcdir/$_pkgname-$pkgver/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 "$srcdir/$_pkgname-$pkgver/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

@@ -1,12 +1,12 @@
 # Maintainer: epwv <281472559+epwv@users.noreply.github.com>
 pkgname=uncord-git
 _pkgname=uncord
-pkgver=0.75a.r0.g0000000
+pkgver=0.75b.r0.g0000000
 pkgrel=1
 pkgdesc="Discord in your terminal, with voice calls, inline images and screen sharing"
 arch=('x86_64' 'aarch64')
 url="https://github.com/epwv/uncord"
-license=('unknown')
+license=('MIT')
 depends=('python' 'ffmpeg' 'opus' 'pipewire')
 makedepends=('git' 'python-pip' 'gcc')
 optdepends=('chafa: faster, nicer inline images'
@@ -45,4 +45,5 @@ package() {
     install -Dm644 "$srcdir/$_pkgname/packaging/uncord.desktop" "$pkgdir/usr/share/applications/uncord.desktop"
     install -Dm644 "$srcdir/$_pkgname/assets/icon.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/uncord.svg"
     install -Dm644 "$srcdir/$_pkgname/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 "$srcdir/$_pkgname/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

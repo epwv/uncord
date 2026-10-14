@@ -143,7 +143,7 @@ py.buildPythonApplication {
   meta = {
     description = "Discord in your terminal, with voice calls, inline images and screen sharing";
     homepage = "https://github.com/epwv/uncord";
-    license = lib.licenses.unfree;
+    license = lib.licenses.mit;
     mainProgram = "uncord";
     platforms = lib.platforms.linux;
   };

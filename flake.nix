@@ -6,10 +6,7 @@
   outputs = { self, nixpkgs }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
-      forAll = f: nixpkgs.lib.genAttrs systems (system: f (import nixpkgs {
-        inherit system;
-        config.allowUnfreePredicate = pkg: (pkg.pname or "") == "uncord";
-      }));
+      forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
       packages = forAll (pkgs: rec {

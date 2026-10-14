@@ -71,10 +71,11 @@ Any AUR helper works (`paru -S uncord` too). Update it with your helper rather t
 ### Nix
 
 ```sh
-nix run github:epwv/uncord
+nix run github:epwv/uncord              # try it
+nix profile install github:epwv/uncord  # install it
 ```
 
-Or add the flake to your system: `inputs.uncord.url = "github:epwv/uncord";`, then add `uncord.packages.${system}.default` to your packages.
+uncord isn't in nixpkgs yet, so `nix-env -iA nixpkgs.uncord` won't find it. On NixOS, add the flake to your system: `inputs.uncord.url = "github:epwv/uncord";`, then add `uncord.packages.${system}.default` to your packages.
 
 ### By hand
 
@@ -178,3 +179,7 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 | `packaging/` | AUR and Nix packages |
 
 Thanks to [hakuxyz](https://github.com/hakuxyz) for help tracking down screen sharing bugs.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
