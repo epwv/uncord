@@ -17,7 +17,7 @@ from textual.strip import Strip
 from textual.widget import Widget
 from textual.widgets import Static
 
-from . import chafasixel, native
+from . import _native as native, chafasixel
 
 log = logging.getLogger("uncord")
 _NULL = Style()

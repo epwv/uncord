@@ -231,15 +231,12 @@ class SettingsScreen(ModalScreen):
         yield Button("Turn all back to defaults", id="btn-plugin-reset")
 
     def _about(self):
-        from . import native
-
         user = self.app.client.user
         t = Text(f"uncord {__version__}\n", style="bold")
         t.append("Discord in your terminal\n\n", style="bright_black")
         if user is not None:
             t.append(f"Logged in as {user.name}\n", style="bright_black")
-        t.append(f"Native speedups: {'on' if native.ACTIVE else 'off (no C compiler at install)'}\n\n",
-                 style="bright_black")
+        t.append("\n", style="bright_black")
         t.append("https://github.com/epwv/uncord\nhttps://discord.gg/fubfK8C6Cm", style="#00a8fc")
         yield Static(t)
         yield Button("Check for updates", id="btn-update")

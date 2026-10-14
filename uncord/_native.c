@@ -1,5 +1,4 @@
 //byte crunching that python is slow at: sixel scans, kitty placeholder rows, h264 and rtp packets
-//optional, uncord/native.py has the same functions in python if this isnt built
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <stdint.h>

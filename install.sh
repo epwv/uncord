@@ -96,31 +96,31 @@ say "distro: ${PRETTY_NAME:-$distro} ($distro)"
 # packages per distro: needed, then nice to have (installed one by one so a missing one doesn't stop the rest)
 case "$distro" in
     debian)
-        need="python3 python3-venv python3-pip git ffmpeg libopus0 pipewire-bin"
-        extra="chafa mpv wl-clipboard xclip libnotify-bin gpu-screen-recorder gcc python3-dev"
+        need="python3 python3-venv python3-pip python3-dev gcc git ffmpeg libopus0 pipewire-bin"
+        extra="chafa mpv wl-clipboard xclip libnotify-bin gpu-screen-recorder"
         pm="apt-get install -y" ;;
     fedora)
-        need="python3 python3-pip git ffmpeg-free opus pipewire-utils"
-        extra="chafa mpv wl-clipboard xclip libnotify gcc python3-devel"
+        need="python3 python3-pip python3-devel gcc git ffmpeg-free opus pipewire-utils"
+        extra="chafa mpv wl-clipboard xclip libnotify"
         pm="dnf install -y" ;;
     arch)
-        need="python python-pip git ffmpeg opus pipewire"
-        extra="chafa mpv wl-clipboard xclip libnotify gpu-screen-recorder gcc"
+        need="python python-pip gcc git ffmpeg opus pipewire"
+        extra="chafa mpv wl-clipboard xclip libnotify gpu-screen-recorder"
         pm="pacman -S --needed --noconfirm" ;;
     suse)
-        need="python3 python3-pip git ffmpeg libopus0 pipewire-tools"
-        extra="chafa mpv wl-clipboard xclip libnotify-tools gpu-screen-recorder gcc python3-devel"
+        need="python3 python3-pip python3-devel gcc git ffmpeg libopus0 pipewire-tools"
+        extra="chafa mpv wl-clipboard xclip libnotify-tools gpu-screen-recorder"
         pm="zypper --non-interactive install" ;;
     void)
-        need="python3 python3-pip git ffmpeg opus pipewire"
-        extra="chafa mpv wl-clipboard xclip libnotify gpu-screen-recorder gcc python3-devel"
+        need="python3 python3-pip python3-devel gcc git ffmpeg opus pipewire"
+        extra="chafa mpv wl-clipboard xclip libnotify gpu-screen-recorder"
         pm="xbps-install -Sy" ;;
     alpine)
-        need="python3 py3-pip git ffmpeg opus pipewire-tools"
-        extra="chafa mpv wl-clipboard xclip libnotify gpu-screen-recorder gcc musl-dev python3-dev"
+        need="python3 py3-pip python3-dev gcc musl-dev git ffmpeg opus pipewire-tools"
+        extra="chafa mpv wl-clipboard xclip libnotify gpu-screen-recorder"
         pm="apk add" ;;
     gentoo)
-        need="dev-lang/python dev-vcs/git media-video/ffmpeg media-libs/opus media-video/pipewire"
+        need="dev-lang/python sys-devel/gcc dev-vcs/git media-video/ffmpeg media-libs/opus media-video/pipewire"
         extra="media-gfx/chafa media-video/mpv gui-apps/wl-clipboard x11-misc/xclip x11-libs/libnotify"
         pm="" ;;
     *)
@@ -145,9 +145,8 @@ installSystem() {
     fi
     if [ -z "$pm" ]; then
         warn "don't know this distro's package manager. install these yourself if you can:"
-        echo "   python 3.10+, python venv + pip, git, ffmpeg, opus, pipewire (pw-play/pw-record)"
-        echo "   optional: chafa, mpv, wl-clipboard or xclip, libnotify, gpu-screen-recorder,"
-        echo "   a C compiler and python headers (builds the faster native parts)"
+        echo "   python 3.10+ with venv, pip and headers, a C compiler, git, ffmpeg, opus, pipewire (pw-play/pw-record)"
+        echo "   optional: chafa, mpv, wl-clipboard or xclip, libnotify, gpu-screen-recorder"
         if [ "$distro" = gentoo ]; then
             echo "   emerge --ask --noreplace $need $extra"
         fi

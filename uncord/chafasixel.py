@@ -76,9 +76,9 @@ def _load() -> bool:
 
 
 #an all background sixel means encoding went wrong
-from . import native  # noqa: E402
+from . import _native  # noqa: E402
 
-hasPixels = native.hasPixels
+hasPixels = _native.hasPixels
 
 
 def available() -> bool:
