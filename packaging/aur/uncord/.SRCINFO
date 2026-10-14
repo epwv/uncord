@@ -21,6 +21,6 @@ pkgbase = uncord
 	options = !strip
 	options = !debug
 	source = uncord-0.6.tar.gz::https://github.com/epwv/uncord/archive/refs/tags/v0.6.tar.gz
-	sha256sums = SKIP
+	sha256sums = 34766228602e490cf7e28a2cf9599dca506a6f8f298bab8ec0e6d56fc756b617
 
 pkgname = uncord

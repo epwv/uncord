@@ -18,7 +18,7 @@ optdepends=('chafa: faster, nicer inline images'
 conflicts=('uncord-git')
 options=('!strip' '!debug')
 source=("$_pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')  # run updpkgsums once the v$pkgver tag is on github
+sha256sums=('34766228602e490cf7e28a2cf9599dca506a6f8f298bab8ec0e6d56fc756b617')
 
 package() {
     # python deps like discord.py-self master and davey aren't in the repos, so they live in a private venv
@@ -34,7 +34,19 @@ package() {
     printf '#!/bin/sh\nexec %s/bin/uncord "$@"\n' "$venv" > "$pkgdir/usr/bin/uncord"
     chmod 755 "$pkgdir/usr/bin/uncord"
 
-    install -Dm644 "$srcdir/$_pkgname-$pkgver/packaging/uncord.desktop" "$pkgdir/usr/share/applications/uncord.desktop"
+    install -d "$pkgdir/usr/share/applications"
+    cat > "$pkgdir/usr/share/applications/uncord.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=uncord
+GenericName=Discord client
+Comment=Discord in your terminal
+Exec=uncord
+Icon=uncord
+Terminal=true
+Categories=Network;Chat;InstantMessaging;
+Keywords=discord;chat;voice;
+DESKTOP
     install -Dm644 "$srcdir/$_pkgname-$pkgver/assets/icon.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/uncord.svg"
     install -Dm644 "$srcdir/$_pkgname-$pkgver/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
 }
