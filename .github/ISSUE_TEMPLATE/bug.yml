@@ -1,0 +1,35 @@
+name: Bug report
+description: Something doesn't work
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: uncord version
+      description: Shown at the right of the title bar, or in Settings → About.
+      placeholder: "0.75f"
+    validations:
+      required: true
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal and distro
+      placeholder: "foot on Arch"
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of uncord --doctor
+      render: text
+  - type: textarea
+    id: log
+    attributes:
+      label: End of ~/.cache/uncord/uncord.log
+      description: Tokens are scrubbed from the log, but check it for message text you'd rather not share.
+      render: text
