@@ -10,6 +10,7 @@ binDir="${UNCORD_BIN_DIR:-$HOME/.local/bin}"
 appDir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 venv="$dataDir/venv"
 launcher="$binDir/uncord"
+pathMark="# added by uncord install.sh"
 desktop="$appDir/uncord.desktop"
 
 yes=0
@@ -63,6 +64,14 @@ uninstall() {
     if [ -f "$desktop" ] && grep -q "X-Uncord-Installer=true" "$desktop"; then
         run rm -f "$desktop"
     fi
+    for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
+        if grep -qs "$pathMark" "$rc"; then
+            say "removing the PATH line from $rc"
+            if [ "$dryRun" = 0 ]; then
+                grep -v "$pathMark" "$rc" > "$rc.uncord-tmp" && cat "$rc.uncord-tmp" > "$rc" && rm -f "$rc.uncord-tmp"
+            fi
+        fi
+    done
     say "done. your login and settings are still in ${XDG_CONFIG_HOME:-$HOME/.config}/uncord"
 }
 
@@ -264,14 +273,39 @@ EOF
     fi
 fi
 
+# put the launcher dir on PATH for new terminals, debian and others only add ~/.local/bin at login if it already existed
+onPath=1
 case ":$PATH:" in
     *":$binDir:"*) ;;
-    *) warn "$binDir isn't on your PATH. add this to your shell config: export PATH=\"$binDir:\$PATH\"" ;;
+    *) onPath=0 ;;
 esac
+if [ "$onPath" = 0 ]; then
+    case "${SHELL##*/}" in
+        zsh) rc="$HOME/.zshrc" ;;
+        bash) rc="$HOME/.bashrc" ;;
+        fish) rc="" ;;
+        *) rc="$HOME/.profile" ;;
+    esac
+    if [ -z "$rc" ]; then
+        say "adding $binDir to your fish PATH"
+        run fish -c "fish_add_path -U '$binDir'"
+    elif ! grep -qs "$pathMark" "$rc"; then
+        say "adding $binDir to your PATH in $rc"
+        if [ "$dryRun" = 0 ]; then
+            # shellcheck disable=SC2016 # $PATH is meant to stay literal in the rc file
+            printf '\nexport PATH="%s:$PATH"  %s\n' "$binDir" "$pathMark" >> "$rc"
+        fi
+    fi
+fi
 
 if [ "$dryRun" = 0 ]; then
     echo
     "$launcher" --doctor || true
     echo
-    say "all set. run: uncord"
+    if [ "$onPath" = 1 ]; then
+        say "all set. run: uncord"
+    else
+        say "all set. open a new terminal and run: uncord"
+        say "or start it right now with: $launcher"
+    fi
 fi

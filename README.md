@@ -144,6 +144,7 @@ Settings live in `~/.config/uncord/config.json` and the log in `~/.cache/uncord/
 
 Run `uncord --doctor` first. It shows what uncord found and what's missing.
 
+- **`uncord: command not found` right after installing:** open a new terminal. The installer puts `~/.local/bin` on your PATH, but terminals that were already open don't see it. `~/.local/bin/uncord` works straight away.
 - **Blocky images:** your terminal can't draw images. Try Kitty, Ghostty, foot, WezTerm or Konsole.
 - **No sound or nobody hears you:** pick the right devices in Settings → Voice & video. `/voicestats` shows what the audio is doing.
 - **Screen share fails:** check `gpu-screen-recorder --list-monitors`, or use the portal option.
