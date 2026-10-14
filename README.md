@@ -55,6 +55,15 @@ It installs the system packages with your package manager (it asks first), puts 
 
 Update with `uncord --update`. uncord also tells you when an update is out.
 
+### Arch (AUR)
+
+```sh
+yay -S uncord        # latest release
+yay -S uncord-git    # latest commit
+```
+
+Any AUR helper works (`paru -S uncord` too). Update it with your helper rather than `uncord --update`.
+
 ### Nix
 
 ```sh

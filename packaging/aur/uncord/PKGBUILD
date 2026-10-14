@@ -1,14 +1,14 @@
 # Maintainer: epwv <281472559+epwv@users.noreply.github.com>
 pkgname=uncord
 _pkgname=uncord
-pkgver=0.6
+pkgver=0.75
 pkgrel=1
 pkgdesc="Discord in your terminal, with voice calls, inline images and screen sharing"
 arch=('x86_64' 'aarch64')
 url="https://github.com/epwv/uncord"
 license=('unknown')
 depends=('python' 'ffmpeg' 'opus' 'pipewire')
-makedepends=('python-pip')
+makedepends=('python-pip' 'gcc')
 optdepends=('chafa: faster, nicer inline images'
             'mpv: pop videos and streams out into a window'
             'wl-clipboard: paste images on wayland'
@@ -18,7 +18,7 @@ optdepends=('chafa: faster, nicer inline images'
 conflicts=('uncord-git')
 options=('!strip' '!debug')
 source=("$_pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('34766228602e490cf7e28a2cf9599dca506a6f8f298bab8ec0e6d56fc756b617')
+sha256sums=('5dcef10e9ce15c76bc0f9979e3fc1a923060596c84c96e0a12127ea05ee9a127')
 
 package() {
     # python deps like discord.py-self master and davey aren't in the repos, so they live in a private venv

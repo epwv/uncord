@@ -1,14 +1,14 @@
 # Maintainer: epwv <281472559+epwv@users.noreply.github.com>
 pkgname=uncord-git
 _pkgname=uncord
-pkgver=0.75.r0.g0000000
+pkgver=0.75a.r0.g0000000
 pkgrel=1
 pkgdesc="Discord in your terminal, with voice calls, inline images and screen sharing"
 arch=('x86_64' 'aarch64')
 url="https://github.com/epwv/uncord"
 license=('unknown')
 depends=('python' 'ffmpeg' 'opus' 'pipewire')
-makedepends=('git' 'python-pip')
+makedepends=('git' 'python-pip' 'gcc')
 optdepends=('chafa: faster, nicer inline images'
             'mpv: pop videos and streams out into a window'
             'wl-clipboard: paste images on wayland'
