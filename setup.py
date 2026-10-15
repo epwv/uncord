@@ -1,4 +1,4 @@
-#the c part is required so installing needs a c compiler and the python headers
+#the c and c++ parts are required so installing needs gcc, g++ and the python headers
 import re
 
 from setuptools import Extension, setup
@@ -12,4 +12,7 @@ def version() -> str:
     return f"{m.group(1)}.{ord(m.group(2)) - 96}" if m else v
 
 
-setup(version=version(), ext_modules=[Extension("uncord._native", ["uncord/_native.c"], extra_compile_args=["-O2"])])
+setup(version=version(), ext_modules=[
+    Extension("uncord._native", ["uncord/_native.c"], extra_compile_args=["-O2"]),
+    Extension("uncord._dsp", ["uncord/_dsp.cpp"], extra_compile_args=["-O2", "-std=c++17"], language="c++"),
+])

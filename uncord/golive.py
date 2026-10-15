@@ -20,6 +20,7 @@ from discord.voice_state import ConnectionFlowState, VoiceConnectionState
 
 from .deps import FFMPEG, GSR, MPV
 from . import _native as native, rtpvideo
+from .tasks import spawn
 
 try:
     import davey
@@ -266,7 +267,7 @@ class ScreenShare(StreamProtocol):
     def _captureDied(self, why: str) -> None:
         log.error("screen capture stopped: %s", why)
         self.loop.call_soon_threadsafe(
-            lambda: asyncio.ensure_future(
+            lambda: spawn(
                 self.disconnect(force=True, notify=f"Screen capture stopped: {why}")
             )
         )

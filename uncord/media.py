@@ -13,6 +13,7 @@ import discord
 log = logging.getLogger("uncord")
 
 from .deps import FFMPEG, MPV
+from .tasks import spawn
 
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp")
 VIDEO_EXT = (".mp4", ".webm", ".mov", ".mkv", ".m4v")
@@ -363,7 +364,7 @@ def _ppmFrames(data: bytes, dur: float) -> List[Tuple[object, float]]:
 def playExternal(url: str) -> bool:
     if not MPV:
         return False
-    asyncio.get_running_loop().create_task(
+    spawn(
         asyncio.create_subprocess_exec(
             MPV,
             "--really-quiet",

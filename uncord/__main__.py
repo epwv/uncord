@@ -116,9 +116,10 @@ def main() -> None:
     private(CONFIG, isDir=True)
     private(TOKEN_FILE)
     try:
-        importlib.import_module("uncord._native")
+        for mod in ("uncord._native", "uncord._dsp"):
+            importlib.import_module(mod)
     except ImportError:
-        sys.exit("uncord's C part isn't built. Reinstall with a C compiler and the python headers installed "
+        sys.exit("uncord's C and C++ parts aren't built. Reinstall with gcc, g++ and the python headers installed "
                  "(./install.sh does this), or run: python setup.py build_ext --inplace")
     token = getToken()
     private(LOG_FILE.parent, isDir=True)

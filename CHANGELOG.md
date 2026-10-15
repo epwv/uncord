@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.75l (2026-10-15)
+
+- Voice audio maths (volume, mixing, levels, call sounds) moved from Python's `audioop` into a small C++ part. It mixes several people about a third faster, clips once instead of after every voice so loud calls distort less, and drops the `audioop-lts` dependency. Installing now needs g++ as well as gcc
+- Background jobs (sending reactions, notifications, leaving calls…) can no longer be dropped halfway, their errors go to the log, and quitting cancels them cleanly instead of logging "Task was destroyed"
+- Clicking reactions quickly sends them to Discord in order, so the end result matches what you clicked
+- Someone's "is typing" clears the moment their message arrives
+- A broken `config.json` is kept as `config.json.bad` instead of being overwritten with defaults, and a setting with the wrong type falls back to its default instead of crashing
+- Attaching a big file no longer freezes the window while it's read
+- Files over your upload limit (10 MB free, more with Nitro or a boosted server) are caught before uploading, and a failed upload always keeps your message and files
+- `uncord --update` copes when the history on GitHub has been rewritten, as long as you have no commits of your own that would be lost
+
 ## 0.75k (2026-10-14)
 
 - Calls: joining no longer asks Discord to pause every incoming stream, which could leave you hearing nobody. Only cameras you stop watching get paused

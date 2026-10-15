@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-import audioop
 import base64
 import io
 import subprocess
@@ -15,6 +14,7 @@ from discord.file import CloudFile
 from discord.http import handle_message_parameters
 from discord.utils import MISSING
 
+from . import _dsp
 from .media import FFMPEG, MPV
 from .voice import _pwArgs
 
@@ -41,7 +41,7 @@ class Recorder:
                 break
             self.buf.extend(chunk)
             try:
-                self.level = audioop.rms(chunk, 2)
+                self.level = _dsp.rms(chunk)
             except Exception:
                 pass
 
@@ -63,10 +63,8 @@ def waveform(pcm: bytes, points: int = 0) -> bytes:
     secs = len(pcm) / (RATE * 2)
     n = points or max(1, min(256, int(secs * 10)))
     step = max(2, (len(pcm) // n) & ~1)
-    vals = []
-    for i in range(n):
-        chunk = pcm[i * step : (i + 1) * step]
-        vals.append(audioop.rms(chunk, 2) if len(chunk) >= 2 else 0)
+    vals = _dsp.levels(pcm[: n * step], step)
+    vals += [0] * (n - len(vals))
     peak = max(vals) or 1
     return bytes(min(255, int(v / peak * 255)) for v in vals)
 

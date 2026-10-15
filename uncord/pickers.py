@@ -16,6 +16,7 @@ from .fmt import (PRIVATE, STATUS_NAME, activityText, ago, canRead, channelIcon,
 from .screens import MessageSearch, Picker, Prompt
 
 from .panels import SidePanel
+from .tasks import spawn
 
 log = logging.getLogger("uncord")
 
@@ -395,7 +396,7 @@ class PickersMixin:
         def picked(v) -> None:
             if isinstance(v, discord.Relationship):
                 if v.type == discord.RelationshipType.incoming_request:
-                    asyncio.create_task(self._accept(v))
+                    spawn(self._accept(v))
             elif v is not None:
                 self.openDm(v)
 
@@ -557,12 +558,12 @@ class PickersMixin:
         if v == "custom":
             self.push_screen(
                 Prompt("Custom status", "e.g. 🎮 playing cs2", self.ownCustomStatus() or ""),
-                lambda text: asyncio.create_task(self.setStatus(custom=text)) if text is not None else None,
+                lambda text: spawn(self.setStatus(custom=text)) if text is not None else None,
             )
         elif v == "clear":
-            asyncio.create_task(self.setStatus(custom=""))
+            spawn(self.setStatus(custom=""))
         else:
-            asyncio.create_task(self.setStatus(status=v))
+            spawn(self.setStatus(status=v))
 
     async def setStatus(self, status: Optional[str] = None, custom: Optional[str] = None) -> None:
         kw: dict = {}

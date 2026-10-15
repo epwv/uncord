@@ -18,6 +18,7 @@ from .fmt import PRIVATE, channelName, isVoice, snippet
 from .screens import Picker, UserMenu
 
 from .panels import ChatInput, VoiceBar
+from .tasks import spawn
 
 log = logging.getLogger("uncord")
 
@@ -97,7 +98,7 @@ class CallsMixin:
         self.callStarted = time.monotonic()
         self.sfx("connect")
         if isinstance(ch, PRIVATE) and (self.selfMuted or self.selfDeafened):
-            asyncio.create_task(self._pushVoiceFlags())
+            spawn(self._pushVoiceFlags())
         log.info("joined voice %s (%s)", ch.id, type(ch).__name__)
         if self.incoming is not None and self.incoming.id == ch.id:
             self.incoming = None
@@ -130,7 +131,7 @@ class CallsMixin:
         if self.vc is None:
             self.notify("Not in voice.")
             return
-        asyncio.create_task(self._leave())
+        spawn(self._leave())
         self.notify("Left voice.")
 
     async def _pushVoiceFlags(self) -> None:
@@ -168,7 +169,7 @@ class CallsMixin:
         if self.vc is not None:
             self.vc.selfMuted = self.selfMuted or self.selfDeafened
             self.vc.selfDeafened = self.selfDeafened
-            asyncio.create_task(self._pushVoiceFlags())
+            spawn(self._pushVoiceFlags())
         self.updateMePanel()
         self.updateVoicebar()
 
@@ -314,7 +315,7 @@ class CallsMixin:
 
     def action_share(self) -> None:
         if self.share is not None:
-            asyncio.create_task(self.stopShare())
+            spawn(self.stopShare())
             return
         if self._shareStarting:
             return
@@ -531,7 +532,7 @@ class CallsMixin:
             if self.watching is not proto:
                 return
             if result == "stop" or not decoder.popoutOpen():
-                asyncio.create_task(self.stopWatch())
+                spawn(self.stopWatch())
             else:
                 decoder.stopDecode()
                 self.notify("Still playing in mpv", timeout=3, markup=False)
@@ -572,7 +573,7 @@ class CallsMixin:
     #your own webcam f12 toggles it
     def action_camera(self) -> None:
         if self.camera is not None:
-            asyncio.create_task(self.stopCamera())
+            spawn(self.stopCamera())
             return
         if self._cameraStarting:
             return
@@ -621,7 +622,7 @@ class CallsMixin:
 
         def died(why) -> None:
             if self.camera is cam:
-                asyncio.create_task(self.stopCamera(quiet=True))
+                spawn(self.stopCamera(quiet=True))
                 self.notify(why, severity="warning", markup=False)
 
         cam.onEnd = died

@@ -26,7 +26,6 @@ dependencies = [
     "cryptography>=42",
     "segno>=1.6",
     "jeepney>=0.8",
-    "audioop-lts; python_version >= '3.13'",
 ]
 
 [project.urls]

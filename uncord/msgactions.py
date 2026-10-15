@@ -20,6 +20,7 @@ from .fmt import PRIVATE, snippet
 from .screens import Confirm, GifPicker, ImageScreen, Picker, ProfileScreen, TextScreen
 
 from .panels import ChatInput
+from .tasks import spawn
 
 log = logging.getLogger("uncord")
 
@@ -57,7 +58,7 @@ class MessageActionsMixin:
                              lambda yes: yes and self.openExternal(safe, confirmed=True))
             return
         if shutil.which("xdg-open"):
-            asyncio.create_task(
+            spawn(
                 asyncio.create_subprocess_exec(
                     "xdg-open", safe, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
                     start_new_session=True
@@ -134,7 +135,7 @@ class MessageActionsMixin:
             else:
                 self.notify("⏹ Stopped.", timeout=2)
 
-        asyncio.create_task(go())
+        spawn(go())
 
     #voice messages
 
@@ -206,7 +207,7 @@ class MessageActionsMixin:
                 log.exception("voice message")
                 self.notify(f"Voice message failed: {e}", severity="error", markup=False)
 
-        asyncio.create_task(go())
+        spawn(go())
 
     def linksOf(self, m: discord.Message) -> list:
         urls = re.findall(r"https?://[^\s<>|)]+", m.content)
@@ -405,7 +406,7 @@ class MessageActionsMixin:
             except discord.HTTPException as e:
                 self.notify(f"Pin failed: {e.text or e}", severity="error", markup=False)
 
-        asyncio.create_task(go())
+        spawn(go())
 
     #reactions emoji stickers
 
@@ -497,13 +498,17 @@ class MessageActionsMixin:
             return
         self._localReact(m, e, add=not mine)
 
+        #one at a time so fast clicks reach discord in the order they were made
+        lock = self.__dict__.setdefault("_reactLock", asyncio.Lock())
+
         async def go():
             try:
-                if mine:
-                    await m.remove_reaction(e, self.client.user)
-                else:
-                    await m.add_reaction(e)
-                    self.cfg.pushRecentEmoji(key)
+                async with lock:
+                    if mine:
+                        await m.remove_reaction(e, self.client.user)
+                    else:
+                        await m.add_reaction(e)
+                        self.cfg.pushRecentEmoji(key)
             except discord.HTTPException as ex:
                 log.warning("reaction %s failed: %s", "remove" if mine else "add", ex)
                 self.notify(
@@ -516,7 +521,7 @@ class MessageActionsMixin:
                 self.notify("Reaction failed (see log).", severity="error")
             self.onReactionChange(m.channel.id, m.id, delay=0.6)
 
-        asyncio.create_task(go())
+        spawn(go())
 
     def unreact(self, m: discord.Message) -> None:
         w = self.viewFor(m.id)
@@ -560,7 +565,7 @@ class MessageActionsMixin:
             if w is not None:
                 w.refreshFrom(fresh)
 
-        asyncio.create_task(go())
+        spawn(go())
 
     def action_emoji_insert(self) -> None:
         if not self.client.is_ready():
@@ -623,7 +628,7 @@ class MessageActionsMixin:
                 except discord.HTTPException as e:
                     self.notify(f"GIF failed: {e.text or e}", severity="error", markup=False)
 
-            asyncio.create_task(go())
+            spawn(go())
 
         self.push_screen(GifPicker(loader, framesFor), done)
 
@@ -652,6 +657,6 @@ class MessageActionsMixin:
                 except discord.HTTPException as e:
                     self.notify(f"Sticker failed: {e.text or e}", severity="error", markup=False)
 
-            asyncio.create_task(go())
+            spawn(go())
 
         self.push_screen(Picker(entries, placeholder="Send a sticker…", title="Stickers"), done)

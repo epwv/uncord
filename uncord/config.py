@@ -26,15 +26,30 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
+#a hand edited value of the wrong type falls back to the default instead of crashing later
+def _fits(value: Any, default: Any) -> bool:
+    if default is None or isinstance(value, type(default)):
+        return True
+    num = (int, float)
+    return isinstance(default, num) and isinstance(value, num) and not isinstance(value, bool)
+
+
 class Config(dict):
     def __init__(self) -> None:
         super().__init__(DEFAULTS)
         try:
             saved = json.loads(CONFIG_FILE.read_text())
-        except (OSError, ValueError):
+        except OSError:
             saved = None
+        except ValueError:
+            #keep a broken file so the next save doesnt wipe every setting
+            saved = None
+            try:
+                CONFIG_FILE.replace(CONFIG_FILE.with_suffix(".json.bad"))
+            except OSError:
+                pass
         if isinstance(saved, dict):
-            self.update(saved)
+            self.update({k: v for k, v in saved.items() if _fits(v, DEFAULTS.get(k))})
         self["user_volume"] = dict(self.get("user_volume") or {})  #dont share the defaults dict
         if self.get("vad") == 300:
             self["vad"] = 600

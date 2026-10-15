@@ -105,11 +105,11 @@ say "distro: ${PRETTY_NAME:-$distro} ($distro)"
 # packages per distro: needed, then nice to have (installed one by one so a missing one doesn't stop the rest)
 case "$distro" in
     debian)
-        need="python3 python3-venv python3-pip python3-dev gcc git ffmpeg libopus0 pipewire-bin"
+        need="python3 python3-venv python3-pip python3-dev gcc g++ git ffmpeg libopus0 pipewire-bin"
         extra="chafa mpv wl-clipboard xclip libnotify-bin gpu-screen-recorder"
         pm="apt-get install -y" ;;
     fedora)
-        need="python3 python3-pip python3-devel gcc git ffmpeg-free opus pipewire-utils"
+        need="python3 python3-pip python3-devel gcc gcc-c++ git ffmpeg-free opus pipewire-utils"
         extra="chafa mpv wl-clipboard xclip libnotify"
         pm="dnf install -y" ;;
     arch)
@@ -117,7 +117,7 @@ case "$distro" in
         extra="chafa mpv wl-clipboard xclip libnotify gpu-screen-recorder"
         pm="pacman -S --needed --noconfirm" ;;
     suse)
-        need="python3 python3-pip python3-devel gcc git ffmpeg libopus0 pipewire-tools"
+        need="python3 python3-pip python3-devel gcc gcc-c++ git ffmpeg libopus0 pipewire-tools"
         extra="chafa mpv wl-clipboard xclip libnotify-tools gpu-screen-recorder"
         pm="zypper --non-interactive install" ;;
     void)
@@ -125,7 +125,7 @@ case "$distro" in
         extra="chafa mpv wl-clipboard xclip libnotify gpu-screen-recorder"
         pm="xbps-install -Sy" ;;
     alpine)
-        need="python3 py3-pip python3-dev gcc musl-dev git ffmpeg opus pipewire-tools"
+        need="python3 py3-pip python3-dev gcc g++ musl-dev git ffmpeg opus pipewire-tools"
         extra="chafa mpv wl-clipboard xclip libnotify gpu-screen-recorder"
         pm="apk add" ;;
     gentoo)
@@ -154,7 +154,7 @@ installSystem() {
     fi
     if [ -z "$pm" ]; then
         warn "don't know this distro's package manager. install these yourself if you can:"
-        echo "   python 3.10+ with venv, pip and headers, a C compiler, git, ffmpeg, opus, pipewire (pw-play/pw-record)"
+        echo "   python 3.10+ with venv, pip and headers, C and C++ compilers, git, ffmpeg, opus, pipewire (pw-play/pw-record)"
         echo "   optional: chafa, mpv, wl-clipboard or xclip, libnotify, gpu-screen-recorder"
         if [ "$distro" = gentoo ]; then
             echo "   emerge --ask --noreplace $need $extra"

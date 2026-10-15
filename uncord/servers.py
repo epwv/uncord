@@ -10,6 +10,7 @@ from rich.text import Text
 
 from .fmt import channelName, isVoice
 from .screens import Confirm, Picker, Prompt, TextScreen
+from .tasks import spawn
 
 log = logging.getLogger("uncord")
 
@@ -63,16 +64,16 @@ class ServersMixin:
                     self.muteMenu(g)
             elif act == "nick":
                 self.push_screen(Prompt(f"Nickname in {g.name}", "blank resets it", g.me.nick or ""),
-                                 lambda nick: nick is not None and asyncio.create_task(self._setNick(g, nick)))
+                                 lambda nick: nick is not None and spawn(self._setNick(g, nick)))
             elif act == "invite":
-                asyncio.create_task(self._invite(g))
+                spawn(self._invite(g))
             elif act == "info":
                 self.serverInfo(g)
             elif act == "copy":
                 self.copyText(str(g.id))
             elif act == "leave":
                 self.push_screen(Confirm(f"Leave {g.name}?", "You'll need a new invite to come back."),
-                                 lambda yes: yes and asyncio.create_task(self._leaveGuild(g)))
+                                 lambda yes: yes and spawn(self._leaveGuild(g)))
 
         self.push_screen(Picker(entries, placeholder=g.name, title=g.name), done)
 
@@ -180,7 +181,7 @@ class ServersMixin:
                 await asyncio.sleep(0.3)
                 self.notifyMenu(target)
 
-        asyncio.create_task(go())
+        spawn(go())
 
     async def _setNick(self, g, nick: str) -> None:
         try:

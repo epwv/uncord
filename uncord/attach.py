@@ -18,6 +18,7 @@ from .fmt import humanSize, snippet
 from .screens import FileBrowser, Picker, Prompt
 
 from .panels import ChatInput
+from .tasks import spawn
 
 log = logging.getLogger("uncord")
 
@@ -213,16 +214,28 @@ class AttachMixin:
         else:
             self.notify("Clipboard is empty.")
 
+    #read on a thread so a big file doesnt freeze the ui
     def attachFiles(self, paths: list) -> None:
+        spawn(self._attachFiles(paths))
+
+    async def _attachFiles(self, paths: list) -> None:
         for p in paths:
             try:
                 if os.path.getsize(p) > 500 << 20:
                     self.notify(f"{os.path.basename(p)} is too big.", severity="warning", markup=False)
                     continue
-                with open(p, "rb") as f:
-                    self.addAttachment(os.path.basename(p), f.read())
+                data = await asyncio.to_thread(_readFile, p)
             except OSError as e:
                 self.notify(f"Can't read {p}: {e}", severity="error", markup=False)
+                continue
+            self.addAttachment(os.path.basename(p), data)
+
+    #biggest upload discord takes from you here, nitro or the servers boosts raise it
+    def uploadLimit(self) -> int:
+        tier = getattr(getattr(self.client.user, "premium_type", None), "value", 0)
+        mine = {1: 50 << 20, 2: 500 << 20, 3: 50 << 20}.get(tier, 10 << 20)
+        guild = getattr(self.current, "guild", None)
+        return max(mine, guild.filesize_limit if guild is not None else 0)
 
     def addAttachment(self, name: str, data: bytes) -> None:
         if self.plugin("anonymise_files"):
@@ -264,6 +277,12 @@ class AttachMixin:
         if self.current is None:
             self.notify("Pick a chat first (Ctrl+K).", severity="warning")
             return
+        limit = self.uploadLimit()
+        big = [n for n, d in self.attachments if len(d) > limit]
+        if big:
+            self.notify(f"{snippet(big[0], 40)} is over the {humanSize(limit)} upload limit here.",
+                        severity="warning", markup=False)
+            return
         inp = self.query_one("#input", ChatInput)
         files, self.attachments = self.attachments, []
         self.renderAttachments()
@@ -278,8 +297,10 @@ class AttachMixin:
             kw.update(reference=replyTo, mention_author=not self.plugin("no_reply_mention"))
         try:
             await self.current.send(self.convertOutgoing(text) if text.strip() else None, **kw)
-        except discord.HTTPException as e:
-            self.notify(f"Upload failed: {e.text or e}", severity="error", markup=False)
+        except Exception as e:
+            if not isinstance(e, discord.HTTPException):
+                log.warning("upload failed", exc_info=True)
+            self.notify(f"Upload failed: {getattr(e, 'text', '') or e}", severity="error", markup=False)
             self.attachments = files
             self.renderAttachments()
             inp.value = text
@@ -291,7 +312,7 @@ class AttachMixin:
             except discord.HTTPException as e:
                 self.notify(f"Delete failed: {e.text or e}", severity="error", markup=False)
 
-        asyncio.create_task(go())
+        spawn(go())
 
     def copyText(self, text: str) -> None:
         if shutil.which("wl-copy"):
@@ -303,7 +324,12 @@ class AttachMixin:
                                                          stderr=asyncio.subprocess.DEVNULL, start_new_session=True)
                 await p.communicate(text.encode())
 
-            asyncio.create_task(go())
+            spawn(go())
         else:
             self.copy_to_clipboard(text)
         self.notify("Copied.")
+
+
+def _readFile(path: str) -> bytes:
+    with open(path, "rb") as f:
+        return f.read()

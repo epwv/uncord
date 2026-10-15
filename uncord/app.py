@@ -60,6 +60,7 @@ from .panels import ChatInput, ComposerButton, MemberList, Sidebar, SidePanel, T
 from .pickers import PickersMixin
 from .servers import ServersMixin
 from .screens import Picker
+from .tasks import cancelAll, spawn
 
 log = logging.getLogger("uncord")
 
@@ -1416,7 +1417,7 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
                 except Exception:
                     pass
 
-            asyncio.create_task(go())
+            spawn(go())
 
     #autocomplete for @user #channel and :emoji: from the word under the cursor
     def updateSuggestions(self, before: str) -> None:
@@ -1497,7 +1498,7 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
                for n, d in self.BUILTINS if n.startswith(word)]
         cached = self._appCmds.get(self.current.id)
         if cached is None:
-            asyncio.create_task(self._fetchAppCommands(self.current, word))
+            spawn(self._fetchAppCommands(self.current, word))
         for path, c, bot in (cached[1] if cached else []):
             if path.startswith(word):
                 desc = snippet(getattr(c, "description", "") or "", 40)
@@ -1660,7 +1661,8 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
                 if mine:
                     await w.remove()
             await ml.mount_all(self.buildWidgets([m], prev))
-            self.typing.pop(m.author.id, None)
+            if self.typing.pop(m.author.id, None) is not None:
+                self.tickTyping()
             if len(views) + 1 > MAX_MESSAGES and ml.selected < 0:
                 await views[0].remove()
             if atBottom or mine:
@@ -1716,7 +1718,7 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
             else f"{m.author.display_name} · {channelName(ch)}"
         )
         body = snippet(m.clean_content or "[attachment]", 200) if self.cfg.get("notify_preview", True) else "New message"
-        asyncio.create_task(notify.send(title, body))
+        spawn(notify.send(title, body))
 
     def onDiscordEdit(self, payload) -> None:
         cached = self.msgCache.get(payload.channel_id)
@@ -1859,16 +1861,16 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
                 self.updateVoicebar()
             elif getattr(before, "self_video", False) and not getattr(after, "self_video", False):
                 if self.isWatching(member.id, "camera"):
-                    asyncio.create_task(self.stopWatch(quiet=True))
+                    spawn(self.stopWatch(quiet=True))
                     self.notify(f"{member.display_name} turned their camera off.", markup=False)
                 self.updateVoicebar()
         if member.id == self.meId and after.channel is None and self.vc is not None:
             if self.share is not None:
-                asyncio.create_task(self.stopShare(quiet=True))
+                spawn(self.stopShare(quiet=True))
             if self.camera is not None:
-                asyncio.create_task(self.stopCamera(quiet=True))
+                spawn(self.stopCamera(quiet=True))
             if self.watching is not None:
-                asyncio.create_task(self.stopWatch(quiet=True))
+                spawn(self.stopWatch(quiet=True))
             vc, self.vc = self.vc, None
             vc.stopAudio()
             self.sfx("disconnect")
@@ -1891,7 +1893,7 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
                 markup=False,
             )
             if self.notifyOn:
-                asyncio.create_task(notify.send("Incoming call", f"{whoName} is calling", urgent=True))
+                spawn(notify.send("Incoming call", f"{whoName} is calling", urgent=True))
             self.relabel(ch)
         elif not ringingMe and self.incoming is not None and self.incoming.id == ch.id:
             self.incoming = None
@@ -1927,7 +1929,7 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
         old, self.rpcActivity = self.rpcActivity, act
         if act is not None and (old is None or old.name != act.name):
             self.notify(f"🎮 Now showing: {act.name}", timeout=4, markup=False)
-        asyncio.create_task(self._pushPresence())
+        spawn(self._pushPresence())
 
     async def _pushPresence(self) -> None:
         custom = next((a for a in self.client.activities if isinstance(a, discord.CustomActivity)), None)
@@ -1946,4 +1948,5 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
             await asyncio.wait_for(self.client.close(), 5)
         except Exception:
             pass
+        await cancelAll()
         self.exit()

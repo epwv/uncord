@@ -41,6 +41,20 @@ def _pip(*args: str) -> int:
     return subprocess.call([sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check", *args])
 
 
+#when github history was rewritten a fast forward cant work, but a rewrite keeps each commits
+#author time and subject, so if all of ours are upstream like that nothing of yours is lost by moving
+def _followRewrite(src: Path) -> bool:
+    fmt = "--format=%at %s"
+    mine = _git(src, "log", fmt, "@{u}..HEAD")
+    theirs = _git(src, "log", fmt, "HEAD..@{u}")
+    if mine.returncode != 0 or theirs.returncode != 0:
+        return False
+    if not set(mine.stdout.splitlines()) <= set(theirs.stdout.splitlines()):
+        return False
+    print("uncord's history on github was rewritten, moving to it (none of your commits are lost)")
+    return _git(src, "reset", "--keep", "@{u}").returncode == 0
+
+
 def update() -> int:
     if not os.access(sys.prefix, os.W_OK):
         print("uncord was installed by your package manager (or as root), update it that way instead")
@@ -55,7 +69,7 @@ def update() -> int:
     before = _git(src, "rev-parse", "--short", "HEAD").stdout.strip()
     print(f"pulling in {src}")
     pull = _git(src, "pull", "--ff-only", timeout=180)
-    if pull.returncode != 0:
+    if pull.returncode != 0 and not _followRewrite(src):
         print(pull.stderr.strip() or pull.stdout.strip())
         return 1
     after = _git(src, "rev-parse", "--short", "HEAD").stdout.strip()
@@ -80,8 +94,10 @@ def checkInBackground(notify: Callable[[str], None]) -> None:
     #fetch at most every 12h and say if theres something new
     src = sourceDir()
     stamp = CACHE_DIR / "update-check"
+    if src is None:
+        return
     try:
-        if src is None or time.time() - stamp.stat().st_mtime < CHECK_EVERY:
+        if time.time() - stamp.stat().st_mtime < CHECK_EVERY:
             return
     except OSError:
         pass

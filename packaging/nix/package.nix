@@ -117,7 +117,7 @@ py.buildPythonApplication {
     cryptography
     segno
     jeepney
-  ] ++ lib.optional (py.pythonAtLeast "3.13") py.audioop-lts;
+  ];
 
   pythonRelaxDeps = [ "textual" ];
   # discord.py-self comes from git, which pip metadata can't express for nix
@@ -136,7 +136,7 @@ py.buildPythonApplication {
     install -Dm644 packaging/uncord.desktop $out/share/applications/uncord.desktop
   '';
 
-  pythonImportsCheck = [ "uncord" "uncord._native" ];
+  pythonImportsCheck = [ "uncord" "uncord._native" "uncord._dsp" ];
 
   passthru = { inherit davey discord-protos discord-py-self; };
 

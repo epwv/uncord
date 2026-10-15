@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import audioop
 import collections
 import os
 import shutil
@@ -20,6 +19,8 @@ import discord
 import nacl.secret
 from discord import opus
 from discord.voice_state import VoiceConnectionState
+
+from . import _dsp
 
 try:
     import davey
@@ -130,9 +131,9 @@ class Mic:
                 break
             self.framesRead += 1
             if self.gain != 1.0:
-                buf = audioop.mul(buf, 2, self.gain)
+                buf = _dsp.gain(buf, self.gain)
             try:
-                self.level = audioop.rms(buf, 2)
+                self.level = _dsp.rms(buf)
                 self.peakRms = max(self.peakRms, self.level)
                 if self.level:
                     self.everSignal = True
@@ -209,7 +210,7 @@ class Speaker:
             self.started.pop(ssrc, None)
 
     def _mix(self) -> bytes:
-        out = None
+        frames = []
         with self.lock:
             for ssrc, q in self.queues.items():
                 if not self.started[ssrc]:
@@ -221,12 +222,12 @@ class Speaker:
                     continue
                 frame = q.popleft()
                 self.framesPlayed += 1
-                out = frame if out is None else audioop.add(out, frame, 2)
-        if out is None:
+                frames.append(frame)
+        if not frames:
             return SILENCE_PCM
-        if self.volume != 1.0:
-            out = audioop.mul(out, 2, self.volume)
-        return out
+        if len(frames) == 1 and self.volume == 1.0:
+            return frames[0]
+        return _dsp.mix(frames, self.volume)
 
     #writes a mixed frame every 20ms nonblocking so a stuck pw-play cant freeze us
     def _run(self) -> None:
@@ -604,7 +605,7 @@ class UncordVoiceClient(discord.VoiceClient):
             try:
                 for k in range(lost):
                     pcm = dec.decode(bytes(plain), fec=True) if k == lost - 1 else dec.decode(None, fec=False)
-                    spk.push(ssrc, pcm if gain == 1.0 else audioop.mul(pcm, 2, gain))
+                    spk.push(ssrc, pcm if gain == 1.0 else _dsp.gain(pcm, gain))
             except Exception:
                 pass
         try:
@@ -616,7 +617,7 @@ class UncordVoiceClient(discord.VoiceClient):
         if gain <= 0:
             pcm = None
         elif gain != 1.0:
-            pcm = audioop.mul(pcm, 2, gain)
+            pcm = _dsp.gain(pcm, gain)
         if pcm is not None:
             spk.push(ssrc, pcm)
         if uid is not None:
@@ -655,15 +656,15 @@ class UncordVoiceClient(discord.VoiceClient):
     def _applyAgc(self, frame: bytes, speech: bool) -> bytes:
         if not self.agc:
             return frame
-        rms = audioop.rms(frame, 2)
+        rms = _dsp.rms(frame)
         if speech and rms > 0:
             self._agcLevel = rms if self._agcLevel <= 0 else self._agcLevel * 0.97 + rms * 0.03
         if self._agcLevel > 0:
             want = max(1.0, min(self.AGC_MAX, self.AGC_TARGET / self._agcLevel))
             self.agcGain = want if want < self.agcGain else self.agcGain + (want - self.agcGain) * 0.05
-        peak = audioop.max(frame, 2) or 1
+        peak = _dsp.peak(frame) or 1
         g = min(self.agcGain, 30000 / peak)
-        return frame if g == 1.0 else audioop.mul(frame, 2, g)
+        return frame if g == 1.0 else _dsp.gain(frame, g)
 
     def _send(self, frame: bytes) -> None:
         try:
@@ -693,7 +694,7 @@ class UncordVoiceClient(discord.VoiceClient):
             frame = mic.get(FRAME_MS / 1000 * 3)
             if frame is None or not self.is_connected():
                 continue
-            self.level = audioop.rms(frame, 2)
+            self.level = _dsp.rms(frame)
             self.levelDb = db = rmsToDb(self.level)
             if self.selfMuted or self.selfDeafened:
                 if self._speaking:
@@ -727,8 +728,6 @@ class UncordVoiceClient(discord.VoiceClient):
 
 #sounds
 
-import array as _array
-
 _SFX_NOTES = {
     "join": [(587.3, 0.07), (880.0, 0.11)],
     "leave": [(880.0, 0.07), (587.3, 0.11)],
@@ -744,19 +743,7 @@ _sfxCache: Dict[str, bytes] = {}
 
 
 def _renderSfx(notes, volume: float = 0.22) -> bytes:
-    out = _array.array("h")
-    for freq, secs in notes:
-        n = int(RATE * secs)
-        attack, release = int(RATE * 0.005), int(RATE * 0.03)
-        for i in range(n):
-            env = min(1.0, i / attack if attack else 1.0, (n - i) / release if release else 1.0)
-            t = i / RATE
-            v = (math.sin(2 * math.pi * freq * t) + 0.25 * math.sin(4 * math.pi * freq * t)) / 1.25
-            s = int(32767 * volume * env * v)
-            out.append(s)
-            out.append(s)
-    out.extend([0] * (RATE // 50 * CHANNELS))
-    return out.tobytes()
+    return _dsp.tones(notes, RATE, volume)
 
 
 def playSfx(kind: str, volume: float = 1.0) -> None:
@@ -767,7 +754,7 @@ def playSfx(kind: str, volume: float = 1.0) -> None:
     if pcm is None:
         pcm = _sfxCache[kind] = _renderSfx(notes)
     if volume != 1.0:
-        pcm = audioop.mul(pcm, 2, max(0.0, min(volume, 3.0)))
+        pcm = _dsp.gain(pcm, max(0.0, min(volume, 3.0)))
 
     def run():
         try:

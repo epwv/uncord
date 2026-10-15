@@ -34,7 +34,7 @@ Questions or ideas? Join the [uncord Discord server](https://discord.gg/fubfK8C6
 - **Screen sharing:** go live with one key, or watch someone else's stream right in the terminal.
 - **Extras built in:** an inbox for unreads and mentions, bot slash commands, voice messages, Rich Presence for your games, and 25 plugins such as MessageLogger and ClearURLs.
 - **End-to-end encryption:** calls and streams use Discord's DAVE encryption, like the official app.
-- **Fast:** the busiest code (image and video packet handling) is written in C.
+- **Fast:** the busiest code is compiled: image and video packet handling in C, voice mixing and levels in C++.
 
 ## Install
 
@@ -76,7 +76,7 @@ python3 -m venv ~/.local/share/uncord/venv
 ~/.local/share/uncord/venv/bin/uncord
 ```
 
-**What it needs:** a C compiler and the Python headers to build it, plus ffmpeg, libopus and PipeWire for voice. Optional extras: chafa (nicer images), mpv (pop-out video), wl-clipboard or xclip (pasting images), a notification daemon, and gpu-screen-recorder (screen sharing and camera).
+**What it needs:** C and C++ compilers (gcc and g++) and the Python headers to build it, plus ffmpeg, libopus and PipeWire for voice. Optional extras: chafa (nicer images), mpv (pop-out video), wl-clipboard or xclip (pasting images), a notification daemon, and gpu-screen-recorder (screen sharing and camera).
 
 ## Logging in
 
@@ -156,7 +156,7 @@ If uncord can't find something, point it there: `UNCORD_FFMPEG`, `UNCORD_OPUS`, 
 
 ```sh
 python3 -m venv .venv && .venv/bin/pip install -e .
-.venv/bin/python setup.py build_ext --inplace   # rebuild after editing _native.c
+.venv/bin/python setup.py build_ext --inplace   # rebuild after editing _native.c or _dsp.cpp
 .venv/bin/python -m uncord
 ```
 
@@ -167,6 +167,7 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 | `uncord/voice.py`, `golive.py`, `rtpvideo.py` | calls, screen sharing and video |
 | `uncord/fmt.py`, `messages.py` | turning messages into terminal text |
 | `uncord/_native.c` | the C part: image rows and video packets |
+| `uncord/_dsp.cpp` | the C++ part: voice volume, mixing, levels and call sounds |
 | `uncord/safety.py` | escape stripping, link checks, log scrubbing |
 | `packaging/` | AUR and Nix packages |
 
