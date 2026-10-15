@@ -24,7 +24,6 @@ _NULL = Style()
 _ZW = ((ControlType.CURSOR_FORWARD, 0),)
 
 try:
-    from textual_image._sixel import image_to_sixels
     from textual_image._terminal import get_cell_size
     from textual_image.renderable import Image as _Auto
     from textual_image.renderable.sixel import Image as _SixelR
@@ -54,6 +53,18 @@ def boxFor(w: int, h: int, maxCols: int, maxRows: int, upscale: float = 2.0) -> 
     cw, ch = cellSize()
     scale = min(maxCols * cw / w, maxRows * ch / h, upscale)
     return max(1, math.ceil(w * scale / cw)), max(1, math.ceil(h * scale / ch))
+
+
+#built in sixel encoder for when libchafa is missing, rgb images only
+#up to 256 colours go as they are, more get quantized by pillow first
+def sixelEncode(img) -> str:
+    from PIL import Image as PILImage
+
+    out = native.sixel(img.tobytes(), *img.size)
+    if out is None:
+        pal = img.quantize(256, method=PILImage.Quantize.FASTOCTREE)
+        out = native.sixel(pal.tobytes(), *img.size, bytes(pal.getpalette()[:768]))
+    return out
 
 
 #encode an image as one sixel strip per text row so textual can draw it line by line
@@ -86,7 +97,7 @@ def encodeRows(img, cols: int, rows: int, bg, animated: bool) -> List[str]:
                 base = PILImage.new("RGBA", strip.size, bg)
                 base.alpha_composite(strip)
                 strip = base.convert("RGB")
-            data = image_to_sixels(strip, None, bg)
+            data = sixelEncode(strip.convert("RGB"))
         out.append(data)
     return out
 
@@ -267,22 +278,12 @@ def kittyMessage(payload: str = "", **keys) -> str:
 
 
 def kittyUpload(img, imageId: int, cols: int, rows: int) -> str:
-    import base64
     import io as _io
 
     buf = _io.BytesIO()
     img.save(buf, format="PNG", compress_level=1)
-    data = base64.b64encode(buf.getvalue()).decode()
-    out = []
-    first = True
-    while data:
-        chunk, data = data[:4096], data[4096:]
-        keys = dict(a="t", f=100, i=imageId, q=2) if first else dict(q=2)
-        keys["m"] = 1 if data else 0
-        out.append(kittyMessage(chunk, **keys))
-        first = False
-    out.append(kittyMessage(a="p", U=1, i=imageId, c=cols, r=rows, q=2))
-    return "".join(out)
+    upload = native.kittyChunks(buf.getvalue(), f"a=t,f=100,i={imageId},q=2", "q=2")
+    return upload + kittyMessage(a="p", U=1, i=imageId, c=cols, r=rows, q=2)
 
 
 class KittyMedia(SixelMedia):

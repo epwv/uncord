@@ -15,4 +15,5 @@ def version() -> str:
 setup(version=version(), ext_modules=[
     Extension("uncord._native", ["uncord/_native.c"], extra_compile_args=["-O2"]),
     Extension("uncord._dsp", ["uncord/_dsp.cpp"], extra_compile_args=["-O2", "-std=c++17"], language="c++"),
+    Extension("uncord._rtp", ["uncord/_rtp.cpp"], extra_compile_args=["-O2", "-std=c++17"], language="c++"),
 ])

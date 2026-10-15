@@ -116,7 +116,7 @@ def main() -> None:
     private(CONFIG, isDir=True)
     private(TOKEN_FILE)
     try:
-        for mod in ("uncord._native", "uncord._dsp"):
+        for mod in ("uncord._native", "uncord._dsp", "uncord._rtp"):
             importlib.import_module(mod)
     except ImportError:
         sys.exit("uncord's C and C++ parts aren't built. Reinstall with gcc, g++ and the python headers installed "

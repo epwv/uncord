@@ -156,7 +156,7 @@ If uncord can't find something, point it there: `UNCORD_FFMPEG`, `UNCORD_OPUS`, 
 
 ```sh
 python3 -m venv .venv && .venv/bin/pip install -e .
-.venv/bin/python setup.py build_ext --inplace   # rebuild after editing _native.c or _dsp.cpp
+.venv/bin/python setup.py build_ext --inplace   # rebuild after editing _native.c, _dsp.cpp or _rtp.cpp
 .venv/bin/python -m uncord
 ```
 
@@ -166,8 +166,9 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 | `uncord/settings.py` | the settings tabs |
 | `uncord/voice.py`, `golive.py`, `rtpvideo.py` | calls, screen sharing and video |
 | `uncord/fmt.py`, `messages.py` | turning messages into terminal text |
-| `uncord/_native.c` | the C part: image rows and video packets |
-| `uncord/_dsp.cpp` | the C++ part: voice volume, mixing, levels and call sounds |
+| `uncord/_native.c` | C: sixel encoding, kitty image chunks, ppm frames, h264 splitting |
+| `uncord/_dsp.cpp` | C++: voice volume, mixing, levels and call sounds |
+| `uncord/_rtp.cpp` | C++: video depacketizers, jitter buffer, rtcp and outgoing packets |
 | `uncord/safety.py` | escape stripping, link checks, log scrubbing |
 | `packaging/` | AUR and Nix packages |
 

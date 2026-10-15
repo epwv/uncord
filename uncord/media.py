@@ -12,6 +12,7 @@ import discord
 
 log = logging.getLogger("uncord")
 
+from . import _native as native
 from .deps import FFMPEG, MPV
 from .tasks import spawn
 
@@ -337,28 +338,14 @@ async def videoFrames(
     return await asyncio.to_thread(_ppmFrames, out, 1 / fps)
 
 
+#ffmpeg's image2pipe ppm output split into frames, the parsing is in _native.c
 def _ppmFrames(data: bytes, dur: float) -> List[Tuple[object, float]]:
     from PIL import Image as PILImage
 
-    frames, pos, n = [], 0, len(data)
-    while pos < n:
-        parts, p = [], pos
-        while len(parts) < 4:
-            while data[p : p + 1].isspace():
-                p += 1
-            q = p
-            while q < n and not data[q : q + 1].isspace():
-                q += 1
-            parts.append(data[p:q])
-            p = q
-        p += 1
-        w, h = int(parts[1]), int(parts[2])
-        size = w * h * 3
-        if parts[0] != b"P6" or p + size > n:
-            break
-        frames.append((PILImage.frombuffer("RGB", (w, h), data[p : p + size], "raw", "RGB", 0, 1), dur))
-        pos = p + size
-    return frames
+    return [
+        (PILImage.frombuffer("RGB", (w, h), data[o : o + w * h * 3], "raw", "RGB", 0, 1), dur)
+        for w, h, o in native.ppmFrames(data)
+    ]
 
 
 def playExternal(url: str) -> bool:

@@ -24,7 +24,7 @@ from textual.screen import Screen
 from textual.strip import Strip
 from textual.widget import Widget
 
-from . import chafasixel, sixelview
+from . import _native as native, chafasixel, sixelview
 
 log = logging.getLogger("uncord")
 _DIM = Style(color="bright_black")
@@ -107,14 +107,8 @@ class LiveSixel(Widget, can_focus=False):
         else:
             import zlib
 
-            packed = base64.b64encode(zlib.compress(data, 1)).decode()
-            parts, first = [], True
-            while packed:
-                chunk, packed = packed[:4096], packed[4096:]
-                more = dict(keys, o="z") if first else {}
-                parts.append(sixelview.kittyMessage(chunk, m=1 if packed else 0, **more))
-                first = False
-            body = "".join(parts)
+            first = ",".join(f"{k}={v}" for k, v in dict(keys, o="z").items())
+            body = native.kittyChunks(zlib.compress(data, 1), first, "")
         self._bytes = len(data)
         drop = sixelview.kittyMessage(a="d", d="I", i=old, q=2) if old else ""
         return "\x1b[?2026h\x1b7" + Control.move_to(x, y).segment.text + body + drop + "\x1b8\x1b[?2026l"
@@ -250,9 +244,7 @@ class LiveSixel(Widget, can_focus=False):
                     img = canvas
                 six = chafasixel.encode(img, cols, rows, cw, ch, chafasixel.DITHER_NONE)
                 if six is None:
-                    from textual_image._sixel import image_to_sixels
-
-                    six = image_to_sixels(img, None, (0, 0, 0, 255))
+                    six = sixelview.sixelEncode(img)
             except Exception:
                 log.debug("live sixel encode failed", exc_info=True)
                 continue

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.75n (2026-10-15)
+
+- Video receiving and screen sharing moved into a new C++ part (`_rtp.cpp`): the H.264, H.265, VP8, VP9 and AV1 depacketizers, the jitter buffer that reorders packets and asks for resends and keyframes, RTCP reports, outgoing video packets and cutting the capture into frames
+- The built-in sixel encoder (used when libchafa isn't installed) is now C and about 15 times faster, and images with 256 colours or fewer keep their exact colours
+- Kitty image uploads and ffmpeg's video frames for inline clips are split up in C
+
 ## 0.75m (2026-10-15)
 
 - Stable AUR package checksum updated for the re-tagged v0.75b release

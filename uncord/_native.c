@@ -1,7 +1,8 @@
-//byte crunching that python is slow at: sixel scans, kitty placeholder rows, h264 and rtp packets
+//byte crunching that python is slow at: sixel encoding and scans, kitty chunks and placeholder rows, ppm frames, h264 and rtp packets
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 //textual_image's table, kitty uses these combining marks to number rows and columns
@@ -208,7 +209,280 @@ static PyObject *rtpHeader(PyObject *self, PyObject *arg) {
     return res;
 }
 
+//growable output buffer for the encoders below
+typedef struct {
+    char *s;
+    size_t len, cap;
+    int failed;
+} Out;
+
+static void outReserve(Out *o, size_t more) {
+    if (o->failed || o->len + more <= o->cap) return;
+    size_t cap = o->cap ? o->cap : 4096;
+    while (cap < o->len + more) cap *= 2;
+    char *s = PyMem_Realloc(o->s, cap);
+    if (s == NULL) {
+        o->failed = 1;
+        return;
+    }
+    o->s = s;
+    o->cap = cap;
+}
+
+static void outPut(Out *o, const char *s, size_t n) {
+    outReserve(o, n);
+    if (o->failed) return;
+    memcpy(o->s + o->len, s, n);
+    o->len += n;
+}
+
+static void outChar(Out *o, char c) {
+    outPut(o, &c, 1);
+}
+
+static void outFmt(Out *o, const char *fmt, int a, int b, int c, int d) {
+    char tmp[64];
+    int n = snprintf(tmp, sizeof tmp, fmt, a, b, c, d);
+    if (n > 0) outPut(o, tmp, (size_t)n);
+}
+
+static PyObject *outString(Out *o) {
+    if (o->failed) {
+        PyMem_Free(o->s);
+        return PyErr_NoMemory();
+    }
+    PyObject *res = PyUnicode_FromStringAndSize(o->s ? o->s : "", (Py_ssize_t)o->len);
+    PyMem_Free(o->s);
+    return res;
+}
+
+//sixel run, 4 or more of the same go as !n
+static void sixelRun(Out *o, int count, char c) {
+    if (count >= 4) {
+        outFmt(o, "!%d", count, 0, 0, 0);
+        outChar(o, c);
+    } else {
+        while (count--) outChar(o, c);
+    }
+}
+
+//colour lookup for rgb pixels, open addressing on the 24 bit colour
+#define HASH_SIZE 1024
+static int colourIndex(uint32_t *keys, int16_t *vals, uint8_t *pal, int *n, uint32_t rgb) {
+    uint32_t h = (rgb * 2654435761u) >> 22;
+    while (vals[h] >= 0) {
+        if (keys[h] == rgb) return vals[h];
+        h = (h + 1) & (HASH_SIZE - 1);
+    }
+    if (*n >= 256) return -1;
+    keys[h] = rgb;
+    vals[h] = (int16_t)*n;
+    pal[*n * 3] = (uint8_t)(rgb >> 16);
+    pal[*n * 3 + 1] = (uint8_t)(rgb >> 8);
+    pal[*n * 3 + 2] = (uint8_t)rgb;
+    return (*n)++;
+}
+
+//sixel(pixels, width, height, palette=None) -> str
+//without a palette pixels are rgb and None comes back if there are more than 256 colours
+//with one they are palette indices into it (r g b bytes per entry)
+static PyObject *sixel(PyObject *self, PyObject *args) {
+    Py_buffer view, palView = {0};
+    Py_ssize_t w, h;
+    PyObject *palObj = Py_None;
+    if (!PyArg_ParseTuple(args, "y*nn|O", &view, &w, &h, &palObj)) return NULL;
+    PyObject *res = NULL;
+    uint8_t *idx = NULL, *masks = NULL;
+    uint8_t pal[768];
+    int ncolours = 0;
+    int usePal = palObj != Py_None;
+    if (w <= 0 || h <= 0 || view.len < w * h * (usePal ? 1 : 3)) {
+        PyErr_SetString(PyExc_ValueError, "pixels don't match the size");
+        goto done;
+    }
+    idx = PyMem_Malloc((size_t)(w * h));
+    masks = PyMem_Calloc(256, (size_t)w);
+    if (idx == NULL || masks == NULL) {
+        PyErr_NoMemory();
+        goto done;
+    }
+    const uint8_t *px = view.buf;
+    if (usePal) {
+        if (PyObject_GetBuffer(palObj, &palView, PyBUF_SIMPLE) < 0) goto done;
+        ncolours = (int)(palView.len / 3 > 256 ? 256 : palView.len / 3);
+        memcpy(pal, palView.buf, (size_t)ncolours * 3);
+        for (Py_ssize_t i = 0; i < w * h; i++) {
+            if (px[i] >= ncolours) {
+                PyErr_SetString(PyExc_ValueError, "palette index out of range");
+                goto done;
+            }
+            idx[i] = px[i];
+        }
+    } else {
+        uint32_t keys[HASH_SIZE];
+        int16_t vals[HASH_SIZE];
+        memset(vals, 0xFF, sizeof vals);
+        for (Py_ssize_t i = 0; i < w * h; i++) {
+            uint32_t rgb = ((uint32_t)px[i * 3] << 16) | ((uint32_t)px[i * 3 + 1] << 8) | px[i * 3 + 2];
+            int c = colourIndex(keys, vals, pal, &ncolours, rgb);
+            if (c < 0) {
+                res = Py_None;
+                Py_INCREF(res);
+                goto done;
+            }
+            idx[i] = (uint8_t)c;
+        }
+    }
+    Out o = {0};
+    outFmt(&o, "\x1bP0;0;0q\"1;1;%d;%d", (int)w, (int)h, 0, 0);
+    for (int c = 0; c < ncolours; c++) {
+        char tmp[48];
+        int n = snprintf(tmp, sizeof tmp, "#%d;2;%d;%d;%d", c, (pal[c * 3] * 100 + 127) / 255,
+                         (pal[c * 3 + 1] * 100 + 127) / 255, (pal[c * 3 + 2] * 100 + 127) / 255);
+        outPut(&o, tmp, (size_t)n);
+    }
+    //one band is 6 rows, each colour in it is drawn as a line of bit masks then $ goes back to the start
+    Py_ssize_t first[256], last[256];
+    uint8_t used[256], inBand[256] = {0};
+    for (Py_ssize_t y0 = 0; y0 < h; y0 += 6) {
+        int nused = 0;
+        int bandH = h - y0 < 6 ? (int)(h - y0) : 6;
+        for (int r = 0; r < bandH; r++) {
+            const uint8_t *row = idx + (y0 + r) * w;
+            for (Py_ssize_t x = 0; x < w; x++) {
+                uint8_t c = row[x];
+                uint8_t *m = masks + (size_t)c * (size_t)w;
+                if (!inBand[c]) {
+                    inBand[c] = 1;
+                    used[nused++] = c;
+                    first[c] = x;
+                    last[c] = x;
+                }
+                m[x] |= (uint8_t)(1 << r);
+                if (x < first[c]) first[c] = x;
+                if (x > last[c]) last[c] = x;
+            }
+        }
+        for (int k = 0; k < nused; k++) {
+            uint8_t c = used[k];
+            uint8_t *m = masks + (size_t)c * (size_t)w;
+            if (k) outChar(&o, '$');
+            outFmt(&o, "#%d", c, 0, 0, 0);
+            sixelRun(&o, (int)first[c], '?');
+            Py_ssize_t x = first[c];
+            while (x <= last[c]) {
+                Py_ssize_t run = 1;
+                while (x + run <= last[c] && m[x + run] == m[x]) run++;
+                sixelRun(&o, (int)run, (char)(63 + m[x]));
+                x += run;
+            }
+            memset(m + first[c], 0, (size_t)(last[c] - first[c] + 1));
+            inBand[c] = 0;
+        }
+        outChar(&o, '-');
+    }
+    outPut(&o, "\x1b\\", 2);
+    res = outString(&o);
+done:
+    PyMem_Free(idx);
+    PyMem_Free(masks);
+    if (palView.obj != NULL) PyBuffer_Release(&palView);
+    PyBuffer_Release(&view);
+    return res;
+}
+
+static const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+//kittyChunks(data, firstKeys, restKeys) -> str
+//kitty graphics messages carry at most 4096 base64 bytes so the data is split with m=1 on all but the last
+static PyObject *kittyChunks(PyObject *self, PyObject *args) {
+    Py_buffer view;
+    const char *firstKeys, *restKeys;
+    if (!PyArg_ParseTuple(args, "y*ss", &view, &firstKeys, &restKeys)) return NULL;
+    const uint8_t *d = view.buf;
+    size_t n = (size_t)view.len;
+    size_t encLen = (n + 2) / 3 * 4;
+    char *enc = PyMem_Malloc(encLen ? encLen : 1);
+    if (enc == NULL) {
+        PyBuffer_Release(&view);
+        return PyErr_NoMemory();
+    }
+    size_t j = 0;
+    for (size_t i = 0; i < n; i += 3) {
+        uint32_t v = (uint32_t)d[i] << 16;
+        if (i + 1 < n) v |= (uint32_t)d[i + 1] << 8;
+        if (i + 2 < n) v |= d[i + 2];
+        enc[j++] = B64[(v >> 18) & 63];
+        enc[j++] = B64[(v >> 12) & 63];
+        enc[j++] = i + 1 < n ? B64[(v >> 6) & 63] : '=';
+        enc[j++] = i + 2 < n ? B64[v & 63] : '=';
+    }
+    PyBuffer_Release(&view);
+    Out o = {0};
+    for (size_t off = 0; off < encLen; off += 4096) {
+        size_t chunk = encLen - off < 4096 ? encLen - off : 4096;
+        const char *keys = off == 0 ? firstKeys : restKeys;
+        outPut(&o, "\x1b_G", 3);
+        outPut(&o, keys, strlen(keys));
+        if (*keys) outChar(&o, ',');
+        outPut(&o, off + chunk < encLen ? "m=1;" : "m=0;", 4);
+        outPut(&o, enc + off, chunk);
+        outPut(&o, "\x1b\\", 2);
+    }
+    PyMem_Free(enc);
+    return outString(&o);
+}
+
+static int isSpace(uint8_t c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
+}
+
+//ppmFrames(data) -> [(width, height, offset)] for ffmpeg's stream of binary ppm frames
+static PyObject *ppmFrames(PyObject *self, PyObject *arg) {
+    Py_buffer view;
+    if (PyObject_GetBuffer(arg, &view, PyBUF_SIMPLE) < 0) return NULL;
+    const uint8_t *d = view.buf;
+    size_t n = (size_t)view.len, pos = 0;
+    PyObject *out = PyList_New(0);
+    while (out != NULL && pos < n) {
+        size_t p = pos, tok[4][2];
+        for (int k = 0; k < 4; k++) {
+            while (p < n && isSpace(d[p])) p++;
+            size_t q = p;
+            while (q < n && !isSpace(d[q])) q++;
+            tok[k][0] = p;
+            tok[k][1] = q;
+            p = q;
+        }
+        p++;
+        if (tok[0][1] - tok[0][0] != 2 || d[tok[0][0]] != 'P' || d[tok[0][0] + 1] != '6') break;
+        size_t dims[2];
+        int ok = 1;
+        for (int k = 0; k < 2; k++) {
+            size_t v = 0, a = tok[k + 1][0], b = tok[k + 1][1];
+            if (a == b || b - a > 6) ok = 0;
+            for (size_t i = a; ok && i < b; i++) {
+                if (d[i] < '0' || d[i] > '9') ok = 0;
+                v = v * 10 + (d[i] - '0');
+            }
+            dims[k] = v;
+        }
+        if (!ok) break;
+        size_t size = dims[0] * dims[1] * 3;
+        if (p > n || size > n - p) break;
+        PyObject *t = Py_BuildValue("(nnn)", (Py_ssize_t)dims[0], (Py_ssize_t)dims[1], (Py_ssize_t)p);
+        if (t == NULL || PyList_Append(out, t) < 0) Py_CLEAR(out);
+        Py_XDECREF(t);
+        pos = p + size;
+    }
+    PyBuffer_Release(&view);
+    return out;
+}
+
 static PyMethodDef methods[] = {
+    {"sixel", sixel, METH_VARARGS, NULL},
+    {"kittyChunks", kittyChunks, METH_VARARGS, NULL},
+    {"ppmFrames", ppmFrames, METH_O, NULL},
     {"hasPixels", hasPixels, METH_O, NULL},
     {"placeholderRow", placeholderRow, METH_VARARGS, NULL},
     {"splitAnnexb", splitAnnexb, METH_O, NULL},

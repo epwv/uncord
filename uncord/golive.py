@@ -19,7 +19,7 @@ from discord.voice_media import VoiceCodec, VoiceStream, VoiceStreamResolution
 from discord.voice_state import ConnectionFlowState, VoiceConnectionState
 
 from .deps import FFMPEG, GSR, MPV
-from . import _native as native, rtpvideo
+from . import _native as native, _rtp, rtpvideo
 from .tasks import spawn
 
 try:
@@ -105,17 +105,6 @@ def listMonitors() -> List[Tuple[str, str]]:
 
 #splits an h264 annex b stream on 00 00 01 start codes into nal units
 splitAnnexb = native.splitAnnexb
-
-
-#one byte rtp header extensions the same ones the desktop client sends
-def _extPayload(elements) -> bytes:
-    out = bytearray()
-    for extId, data in elements:
-        out.append((extId << 4) | (len(data) - 1))
-        out += data
-    while len(out) % 4:
-        out.append(0)
-    return bytes(out)
 
 
 #a voice connection pointed at the stream server instead of the call server
@@ -402,32 +391,13 @@ class _Capture:
 
     def _read(self) -> None:
         out = self.ffp.stdout
-        buf = b""
-        au: List[bytes] = []
-        hasSlice = False
+        units = _rtp.AccessUnits()
         while not self._stop:
             chunk = os.read(out.fileno(), 1 << 16)
             if not chunk:
                 break
-            buf += chunk
-            #tail might be half a nal
-            last = buf.rfind(b"\x00\x00\x01")
-            if last <= 0:
-                continue
-            cut = last - 1 if buf[last - 1] == 0 else last
-            nals, buf = splitAnnexb(buf[:cut]), buf[cut:]
-            for nal in nals:
-                t = nal[0] & 0x1F
-                if t in (6, 9, 12):
-                    continue
-                #new picture at sps pps after a slice or at first mb 0
-                newPic = hasSlice and (t in (7, 8) or (t in (1, 5) and len(nal) > 1 and nal[1] & 0x80))
-                if newPic:
-                    self.feed(au)
-                    au = []
-                    hasSlice = False
-                au.append(nal)
-                hasSlice = hasSlice or t in (1, 5)
+            for au in units.feed(chunk):
+                self.feed(au)
         if not self._stop:
             try:
                 self.gsr.wait(timeout=2)
@@ -516,18 +486,11 @@ class _Sender:
         self.lastTs = ts
         #small nals go as is big ones get split into fu-a fragments
         payloads = native.fuaPayloads(nals, MTU_PAYLOAD)
-        absSend = (int((time.time() % 64) * (1 << 18)) & 0xFFFFFF).to_bytes(3, "big")
-        ext = _extPayload(((3, absSend), (6, b"\x00\x00\x00"), (11, b"100")))
+        absSend = int((time.time() % 64) * (1 << 18)) & 0xFFFFFF
         with self._lock:
-            for i, p in enumerate(payloads):
-                marker = 0x80 if i == len(payloads) - 1 else 0
-                header = (
-                    struct.pack(">BBHII", 0x90, marker | H264_PT, self.seq, ts, self.ssrc)
-                    + b"\xbe\xde"
-                    + struct.pack(">H", len(ext) // 4)
-                )
+            for i, (header, body) in enumerate(_rtp.videoPackets(payloads, self.seq, ts, self.ssrc, H264_PT, absSend)):
                 self.seq = (self.seq + 1) & 0xFFFF
-                pkt = self._encrypt(header, ext + p)
+                pkt = self._encrypt(header, body)
                 try:
                     conn.send_packet(pkt)
                 except OSError:
@@ -563,10 +526,7 @@ class _Sender:
             now = time.time() + 2208988800
             ntpHi, ntpLo = int(now), int((now % 1) * (1 << 32))
             with self._lock:
-                header = struct.pack(">BBHI", 0x80, 200, 6, self.ssrc)
-                body = struct.pack(
-                    ">IIIII", ntpHi, ntpLo, self.lastTs, self.packets & 0xFFFFFFFF, self.bytes & 0xFFFFFFFF
-                )
+                header, body = _rtp.senderReport(self.ssrc, ntpHi, ntpLo, self.lastTs, self.packets, self.bytes)
                 try:
                     self.conn.send_packet(self._encrypt(header, body))
                 except OSError:
@@ -575,146 +535,13 @@ class _Sender:
 
 #watching streams
 
-RTCP_RTPFB, RTCP_PSFB = 205, 206
-
-
 #true if sequence number a comes after b allowing for 16 bit wraparound
 def _seqAfter(a: int, b: int) -> bool:
     return 0 < ((a - b) & 0xFFFF) < 0x8000
 
 
-#puts packets for one video ssrc back in order and hands out whole frames
-#asks for resends (nack) when a packet goes missing and a keyframe (pli) if it stays missing
-class _Assembler:
-
-    GAP_TIMEOUT = 0.35
-    NACK_DELAY = 0.015
-    NACK_RETRY = 0.08
-    MAX_PKTS = 3000
-
-    def __init__(self, codec, onFrame, requestKeyframe, nack) -> None:
-        self.codec = codec
-        self.onFrame = onFrame
-        self.requestKeyframe = requestKeyframe
-        self.nack = nack
-        self.pkts: dict = {}
-        self.nextSeq: Optional[int] = None
-        self.needKey = True
-        self.gapSince = 0.0
-        self.nacked: dict = {}
-        self.lostFrames = 0
-
-    def add(self, seq: int, ts: int, marker: bool, payload: bytes) -> None:
-        if self.nextSeq is not None and not (seq == self.nextSeq or _seqAfter(seq, self.nextSeq)):
-            return
-        if seq in self.pkts:
-            return
-        self.pkts[seq] = (ts, marker, payload)
-        if len(self.pkts) > self.MAX_PKTS:
-            self._resync()
-        self._drain()
-
-    def _resync(self) -> None:
-        markers = [s for s, (_t, m, _p) in self.pkts.items() if m]
-        self.lostFrames += 1
-        self.needKey = True
-        self.requestKeyframe()
-        self.gapSince = 0.0
-        self.nacked.clear()
-        if not markers:
-            self.pkts.clear()
-            self.nextSeq = None
-            return
-        ref = self.nextSeq if self.nextSeq is not None else min(self.pkts)
-        newest = max(markers, key=lambda s: (s - ref) & 0xFFFF)
-        self.nextSeq = (newest + 1) & 0xFFFF
-        self.pkts = {s: v for s, v in self.pkts.items() if _seqAfter(s, newest)}
-
-    #hand out every complete frame starting at nextSeq
-    #a frame is all packets with the same timestamp ending at one with the marker bit
-    def _drain(self) -> None:
-        while self.pkts:
-            if self.nextSeq is None:
-                #first contact start at a keyframe if we caught one
-                lo = min(self.pkts, key=lambda q: (q - next(iter(self.pkts)) + 0x8000) & 0xFFFF)
-                try:
-                    starts = self.codec.isFrameStart(self.pkts[lo][2])
-                except Exception:
-                    starts = False
-                if starts:
-                    self.nextSeq = lo
-                    continue
-                #otherwise after the first frame end
-                markers = [s for s, (_t, m, _p) in self.pkts.items() if m]
-                if not markers:
-                    return
-                m = markers[0]
-                self.nextSeq = (m + 1) & 0xFFFF
-                self.pkts = {s: v for s, v in self.pkts.items() if _seqAfter(s, m)}
-                continue
-            s = self.nextSeq
-            first = self.pkts.get(s)
-            payloads, end = [], None
-            if first is not None:
-                ts0 = first[0]
-                cur = s
-                while True:
-                    pk = self.pkts.get(cur)
-                    if pk is None or pk[0] != ts0:
-                        break
-                    payloads.append(pk[2])
-                    if pk[1]:
-                        end = cur
-                        break
-                    cur = (cur + 1) & 0xFFFF
-            if end is None:
-                self._waiting()
-                return
-            for k in range(len(payloads)):
-                self.pkts.pop((s + k) & 0xFFFF, None)
-            self.nextSeq = (end + 1) & 0xFFFF
-            self.gapSince = 0.0
-            self.nacked.clear()
-            try:
-                frame, key = self.codec.assemble(payloads)
-            except Exception:
-                log.debug("watch: %s depacketize failed", self.codec.name, exc_info=True)
-                frame, key = None, False
-            if not frame:
-                self.needKey = True
-                continue
-            if self.needKey and not key:
-                self.requestKeyframe()
-                continue
-            self.needKey = False
-            self.onFrame(frame, key)
-
-    #a hole in the sequence nack it after a moment then give up and resync
-    def _waiting(self) -> None:
-        now = time.monotonic()
-        if not self.gapSince:
-            self.gapSince = now
-        if now - self.gapSince > self.GAP_TIMEOUT:
-            self._resync()
-            self._drain()
-            return
-        if now - self.gapSince < self.NACK_DELAY:
-            return  #probably just reordered
-        newest = max(self.pkts, key=lambda q: (q - self.nextSeq) & 0xFFFF)
-        span = (newest - self.nextSeq) & 0xFFFF
-        if span > 512:
-            return
-        missing = []
-        for k in range(span):
-            q = (self.nextSeq + k) & 0xFFFF
-            if q in self.pkts:
-                continue
-            sent = self.nacked.get(q)
-            if sent is None or (now - sent[0] > self.NACK_RETRY and sent[1] < 3):  #rtx gets lost too
-                self.nacked[q] = (now, (sent[1] + 1) if sent else 1)
-                missing.append(q)
-        if missing:
-            self.nack(missing)
+#puts packets for one video ssrc back in order and hands out whole frames, nacks gaps and asks for keyframes
+_Assembler = _rtp.Assembler
 
 
 class _VideoReceiver:
@@ -728,27 +555,11 @@ class _VideoReceiver:
         conn = self.conn
         if conn is None or not conn.is_connected() or conn.ssrc is discord.utils.MISSING:
             return
-        blocks = b""
-        for ssrc, (cycles, seq, _n) in list(self.highestSeq.items())[:8]:
-            blocks += struct.pack(">IIIIII", ssrc, 0, (cycles << 16) | seq, 0, 0, 0)
-        rc = len(blocks) // 24
+        highest = [(ssrc, cycles, seq) for ssrc, (cycles, seq, _n) in list(self.highestSeq.items())[:8]]
         media = sorted(s for s in self.highestSeq if s in conn.video_ssrcs) or sorted(
             s for s, u in conn.ssrc_user_ids.items() if u == self.owner_id and s in conn.video_ssrcs
         )
-        bps = 40_000_000
-        exp = 0
-        while bps >= (1 << 18):
-            bps >>= 1
-            exp += 1
-        remb = (
-            b"REMB"
-            + bytes((len(media),))
-            + struct.pack(">I", (exp << 18) | bps)[1:]
-            + b"".join(struct.pack(">I", s) for s in media)
-        )
-        rembPkt = struct.pack(">BBHII", 0x8F, RTCP_PSFB, (12 + len(remb)) // 4 - 1, conn.ssrc, 0) + remb
-        header = struct.pack(">BBHI", 0x80 | rc, 201, (8 + len(blocks)) // 4 - 1, conn.ssrc)
-        self._sendRtcp(header, blocks + rembPkt)
+        self._sendRtcp(*_rtp.feedback(conn.ssrc, highest, media, 40_000_000))
 
     def _box(self):
         key = bytes(self.conn.secret_key)
@@ -792,28 +603,14 @@ class _VideoReceiver:
             return
         self._lastPli = now
         self.stats["pli"] += 1
-        self._sendRtcp(struct.pack(">BBHI", 0x81, RTCP_PSFB, 2, self.conn.ssrc), struct.pack(">I", media))
+        self._sendRtcp(*_rtp.pli(self.conn.ssrc, media))
 
     #generic nack each entry is a seq plus a 16 bit mask of the ones after it
     def _nack(self, media: int, seqs: List[int]) -> None:
         if self.conn is None or not seqs:
             return
-        seqs = sorted(seqs, key=lambda s: (s - seqs[0]) & 0xFFFF)
-        fci = bytearray()
-        i = 0
-        while i < len(seqs) and len(fci) < 4 * 16:
-            pid, blp = seqs[i], 0
-            i += 1
-            while i < len(seqs) and 0 < ((seqs[i] - pid) & 0xFFFF) <= 16:
-                blp |= 1 << (((seqs[i] - pid) & 0xFFFF) - 1)
-                i += 1
-            fci += struct.pack(">HH", pid, blp)
         self.stats["nack"] += 1
-        words = 2 + len(fci) // 4
-        self._sendRtcp(
-            struct.pack(">BBHI", 0x81, RTCP_RTPFB, words, self.conn.ssrc),
-            struct.pack(">I", media) + bytes(fci),
-        )
+        self._sendRtcp(*_rtp.nack(self.conn.ssrc, media, seqs))
 
     #same transport decrypt as voice then route by payload type
     #rtx resends carry the original seq in their first 2 bytes
@@ -827,13 +624,8 @@ class _VideoReceiver:
             return
         self.stats["rx"] += 1
         try:
-            hasExt = bool(data[0] & 0x10)
             header = data[:hlen]
-            plain = self._box().decrypt(data[hlen:-4], header, data[-4:] + b"\x00" * 20)
-            if hasExt:
-                plain = plain[struct.unpack_from(">H", data, hlen - 2)[0] * 4 :]
-            if data[0] & 0x20 and plain:  #rtp padding
-                plain = plain[: -plain[-1]] if plain[-1] <= len(plain) else b""
+            plain = _rtp.rtpPayload(data, self._box().decrypt(data[hlen:-4], header, data[-4:] + b"\x00" * 20))
         except Exception:
             self.stats["transport_fail"] += 1
             return

@@ -10,7 +10,7 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 .venv/bin/python -m uncord
 ```
 
-After editing `uncord/_native.c` (C) or `uncord/_dsp.cpp` (C++), rebuild them with `.venv/bin/python setup.py build_ext --inplace`.
+After editing `uncord/_native.c` (C), `uncord/_dsp.cpp` or `uncord/_rtp.cpp` (C++), rebuild them with `.venv/bin/python setup.py build_ext --inplace`.
 
 ## Style
 

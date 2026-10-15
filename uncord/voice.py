@@ -20,7 +20,7 @@ import nacl.secret
 from discord import opus
 from discord.voice_state import VoiceConnectionState
 
-from . import _dsp
+from . import _dsp, _rtp
 
 try:
     import davey
@@ -552,12 +552,7 @@ class UncordVoiceClient(discord.VoiceClient):
             if box is None or self._aeadKey != key:
                 box, self._aeadKey = nacl.secret.Aead(key), key
                 self._aead = box
-            plain = box.decrypt(data[hlen:-4], header, nonce)
-            if hasExt:
-                extWords = struct.unpack_from(">H", data, hlen - 2)[0]
-                plain = plain[extWords * 4 :]
-            if data[0] & 0x20 and plain:  #rtp padding
-                plain = plain[: -plain[-1]] if plain[-1] <= len(plain) else b""
+            plain = _rtp.rtpPayload(data, box.decrypt(data[hlen:-4], header, nonce))
         except Exception:
             self._err("rx_transport_fail")
             return
