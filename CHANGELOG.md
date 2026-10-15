@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.75m (2026-10-15)
+
+- Stable AUR package checksum updated for the re-tagged v0.75b release
+
 ## 0.75l (2026-10-15)
 
 - Voice audio maths (volume, mixing, levels, call sounds) moved from Python's `audioop` into a small C++ part. It mixes several people about a third faster, clips once instead of after every voice so loud calls distort less, and drops the `audioop-lts` dependency. Installing now needs g++ as well as gcc

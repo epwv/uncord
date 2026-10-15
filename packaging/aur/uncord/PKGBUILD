@@ -18,7 +18,7 @@ optdepends=('chafa: faster, nicer inline images'
 conflicts=('uncord-git')
 options=('!strip' '!debug')
 source=("$_pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('36fb62b8c7ab518e6658fb71ba0a2b6e95bc686e9f6ced7601e5fed4243b2da7')
+sha256sums=('a07e7344cda6ccdeaecb15535b09e85eaca7122e4eaf33a5d84d835c9261d403')
 
 package() {
     # python deps like discord.py-self master and davey aren't in the repos, so they live in a private venv
