@@ -13,7 +13,7 @@ UNSAFE = [c for c in range(0x20) if c not in (9, 10)] + [0x7F] + list(range(0x80
     list(range(0x202A, 0x202F)) + list(range(0x2066, 0x206A))
 
 TOKEN = re.compile(r"(?:mfa\.[\w-]{20,}|[\w-]{24,28}\.[\w-]{6}\.[\w-]{27,40})")
-AUTH = re.compile(r"(?i)(authorization['\"]?\s*[:=]\s*['\"]?)[^\s'\",}]+")
+AUTH = re.compile(r"(?i)(authorization['\"]?\s*[:=]\s*['\"]?(?:bearer\s+|bot\s+)?)[^\s'\",}]+")
 SAFE_SCHEMES = ("http", "https")
 
 
@@ -58,7 +58,7 @@ def private(path: Path, isDir: bool = False) -> None:
     try:
         if isDir:
             path.mkdir(parents=True, exist_ok=True)
-        if path.exists():
+        if path.exists() and not path.is_symlink():
             mode = path.stat().st_mode & 0o777
             want = 0o700 if isDir else 0o600
             if mode & 0o077:

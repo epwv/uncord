@@ -481,7 +481,8 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
             await self.client.start(self.token)
         except discord.LoginFailure:
             self.query_one("#title", Static).update(
-                Text("Login failed: token invalid. Run `uncord --logout` and try again.", style="red")
+                Text("Login failed: token invalid. Check UNCORD_TOKEN / UNCORD_TOKEN_CMD if you set them, "
+                     "otherwise run `uncord --login`.", style="red")
             )
         except Exception as e:
             log.exception("discord client crashed")

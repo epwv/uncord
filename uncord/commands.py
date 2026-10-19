@@ -11,7 +11,7 @@ from rich.text import Text
 
 from . import filepick
 from . import voice as vmod
-from .fmt import PRIVATE, activityText, nameColour, snippet, statusDot, userStatus, nameBadges, platformIcons
+from .fmt import PRIVATE, activityText, humanSize, nameColour, snippet, statusDot, userStatus, nameBadges, platformIcons
 from .screens import Picker, TextScreen
 
 from .calls import SHARE_QUALITIES
@@ -331,10 +331,19 @@ class CommandsMixin:
         elif name in ("sticker", "stickers"):
             self.action_sticker()
         elif name in ("upload", "file"):
-            path, _, caption = arg.partition(" ")
-            path = os.path.expanduser(path)
-            if not path or not os.path.isfile(path) or self.current is None:
+            #paths can have spaces so take the longest start of the args that is a file
+            words = arg.split(" ")
+            path, caption = "", ""
+            for n in range(len(words), 0, -1):
+                cand = os.path.expanduser(" ".join(words[:n]).strip("'\""))
+                if os.path.isfile(cand):
+                    path, caption = cand, " ".join(words[n:])
+                    break
+            if not path or self.current is None:
                 self.notify("Usage (in a chat): /upload ~/path/to/file [caption]", markup=False)
+            elif os.path.getsize(path) > self.uploadLimit():
+                self.notify(f"{os.path.basename(path)} is over the {humanSize(self.uploadLimit())} upload limit "
+                            "here.", severity="warning", markup=False)
             else:
                 self.notify(f"Uploading {os.path.basename(path)}…", markup=False)
                 try:

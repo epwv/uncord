@@ -94,6 +94,8 @@ def loadEnvFile() -> None:
             continue
         if len(val) >= 2 and val[0] == val[-1] and val[0] in "'\"":
             val = val[1:-1]
+        elif " #" in val:
+            val = val.split(" #", 1)[0].rstrip()
         os.environ.setdefault(key, val)
 
 
@@ -106,17 +108,22 @@ def _fromCmd(cmd: str) -> str:
     try:
         out = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=30, check=True)
     except (OSError, ValueError, subprocess.SubprocessError) as e:
-        raise SystemExit(f"uncord: UNCORD_TOKEN_CMD failed: {type(e).__name__}")
+        code = getattr(e, "returncode", None)
+        raise SystemExit(f"uncord: UNCORD_TOKEN_CMD failed: {type(e).__name__}" + (f" (exit {code})" if code else ""))
     return (out.stdout.strip().splitlines() or [""])[0].strip()
 
 
-#returns the token from the env or the command or the file, None means log in
-def token() -> Optional[str]:
+def dropSecrets() -> tuple:
     tok = ""
     for var in ("UNCORD_TOKEN", "DISCORD_TOKEN"):
         tok = tok or os.environ.get(var, "").strip()
         os.environ.pop(var, None)
-    cmd = os.environ.pop("UNCORD_TOKEN_CMD", "").strip()
+    return tok, os.environ.pop("UNCORD_TOKEN_CMD", "").strip()
+
+
+#returns the token from the env or the command or the file, None means log in
+def token() -> Optional[str]:
+    tok, cmd = dropSecrets()
     if not tok and cmd:
         tok = _fromCmd(cmd)
     if not tok:
@@ -155,7 +162,7 @@ def forgetToken() -> None:
 def describe() -> str:
     rows = ["environment (real env wins over " + str(envFile()) + "):", ""]
     for name, desc, secret in VARS:
-        val = os.environ.get(name)
+        val = os.environ.get(name) or (os.environ.get("DISCORD_TOKEN") if name == "UNCORD_TOKEN" else None)
         shown = ("set" if secret else val) if val else "-"
         rows.append(f"  {name:<24} {desc}\n  {'':<24} now: {shown}")
     return "\n".join(rows)

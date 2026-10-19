@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.76a (2026-10-19)
+
+- `uncord --login` uses the account you just logged in with even when `UNCORD_TOKEN` is set
+- `/upload` works with paths that have spaces and checks the upload limit before sending
+- An app clearing its Rich Presence no longer wipes another app's activity that's showing
+- `Authorization: Bearer …` and `Bot …` headers are fully scrubbed from the log, not just the first word
+- Env file values can have a trailing ` # comment`, `uncord --env` shows a token set through `DISCORD_TOKEN`, and a failing `UNCORD_TOKEN_CMD` says its exit code
+- Fixing permissions on the token file no longer follows a symlink to change some other file
+- The "token invalid" message points at `UNCORD_TOKEN` / `UNCORD_TOKEN_CMD` when those are how you logged in
+
 ## 0.76 (2026-10-19)
 
 - Environment variables for the token and everything else: `UNCORD_TOKEN` (`DISCORD_TOKEN` still works), `UNCORD_TOKEN_CMD` to get it from a password manager, `UNCORD_TOKEN_FILE`, `UNCORD_CONFIG_DIR`, `UNCORD_CACHE_DIR`, `UNCORD_LOG_FILE`, `UNCORD_LOG_LEVEL` and `UNCORD_NO_UPDATE_CHECK`, on top of the existing ones. `uncord --env` lists them

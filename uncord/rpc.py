@@ -122,8 +122,10 @@ class RpcServer:
                         args = data.get("args")
                         raw = args.get("activity") if isinstance(args, dict) else None
                         act = await self._activity(appId, raw) if isinstance(raw, dict) else None
-                        self.owner = me if act else None
-                        self.onActivity(act)
+                        #an app clearing its activity mustnt wipe another apps that is showing
+                        if act or self.owner in (me, None):
+                            self.owner = me if act else None
+                            self.onActivity(act)
                         reply = raw
                     writer.write(_pack(FRAME, {"cmd": cmd, "data": reply, "evt": None, "nonce": nonce}))
                 elif op == PING:

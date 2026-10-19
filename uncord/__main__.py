@@ -107,8 +107,10 @@ def main() -> None:
         print("token removed")
         return
     if args and args[0] == "--login":
-        loginFlow()
+        fresh = loginFlow()
         args = []
+    else:
+        fresh = None
     from .safety import RedactingFormatter, private
 
     private(CONFIG, isDir=True)
@@ -119,7 +121,10 @@ def main() -> None:
     except ImportError:
         sys.exit("uncord's C and C++ parts aren't built. Reinstall with gcc, g++ and the python headers installed "
                  "(./install.sh does this), or run: python setup.py build_ext --inplace")
-    token = getToken()
+    #a fresh login wins over UNCORD_TOKEN, which still gets dropped from the environment
+    if fresh:
+        env.dropSecrets()
+    token = fresh or getToken()
     private(LOG_FILE.parent, isDir=True)
     level = LEVELS.get(os.environ.get("UNCORD_LOG_LEVEL", "info").lower(), logging.INFO)
     logging.basicConfig(filename=LOG_FILE, level=level)
