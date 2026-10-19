@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 from typing import Any
 
-CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "uncord"
+from .env import configDir
+
+CONFIG_DIR = configDir()
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 DEFAULTS: dict[str, Any] = {

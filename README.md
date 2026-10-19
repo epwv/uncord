@@ -87,6 +87,12 @@ The first time you run `uncord` it asks how to log in:
 
 Your login is saved in `~/.config/uncord/token`, readable only by you. `uncord --login` logs in again and `uncord --logout` forgets it.
 
+## Environment variables
+
+Instead of the saved token you can set `UNCORD_TOKEN` (or `DISCORD_TOKEN`), or `UNCORD_TOKEN_CMD` to a command that prints it, like `pass show discord/token`. Folders, the log, theme, voice gate and tool paths have variables too. `uncord --env` lists them all.
+
+They can also go in `~/.config/uncord/env` as `KEY=value` lines (see `uncord.env.example`). Real environment variables win over the file, and only uncord's own keys are read from it.
+
 ## Keys
 
 Press **F1** in uncord for the full list.
@@ -137,7 +143,10 @@ Settings live in `~/.config/uncord/config.json` and the log in `~/.cache/uncord/
 - Messages, names and embeds can't send escape sequences to your terminal (things like clipboard writes or title changes). They're stripped before anything is drawn.
 - Masked links show where they really go, and a ⚠ when the text claims a different site.
 - Only http and https links open in your browser. You can have uncord ask first.
-- Your token never goes into the log, and your config, token and log are readable only by you.
+- Your token never goes into the log (not even inside error tracebacks), and your config, token, env file and log are readable only by you.
+- The token is removed from uncord's environment once read, so ffmpeg, mpv, the voice helpers and anything else uncord starts never see it.
+- A token or env file that's a symlink, belongs to another user or isn't a plain file is refused. Tokens with spaces or odd characters are refused too.
+- `uncord --logout` overwrites the token file before deleting it.
 - The Rich Presence socket only accepts your own apps and drops oversized or malformed messages.
 
 ## Troubleshooting

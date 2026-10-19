@@ -29,6 +29,7 @@ from . import media, sixelview, voicemsg
 from . import __version__, fmt, golive, notify, plugins, streamview
 from . import voice as vmod
 from .config import Config
+from .env import logFile
 from .fmt import (
     PRIVATE,
     isBlocked,
@@ -327,7 +328,7 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
             log.error("unhandled error (kept running): %s", key, exc_info=(type(err), err, err.__traceback__))
             try:
                 self.notify(
-                    f"Something went wrong: {key[:90]} (details in ~/.cache/uncord/uncord.log)",
+                    f"Something went wrong: {key[:90]} (details in {logFile()})",
                     severity="error",
                     timeout=6,
                     markup=False,
@@ -418,12 +419,10 @@ class Uncord(ServersMixin, PickersMixin, MessageActionsMixin, AttachMixin, Comma
 
     #forget the saved login and quit, next start asks how to log in
     def logout(self) -> None:
-        from .__main__ import TOKEN_FILE
+        from .env import forgetToken
 
-        try:
-            TOKEN_FILE.unlink()
-        except FileNotFoundError:
-            pass
+        forgetToken()
+        self.token = ""
         self.run_worker(self.action_quit())
 
     #a plugin was switched so redraw whatever it touches

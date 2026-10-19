@@ -9,7 +9,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Select, Static, Switch, TabbedContent, TabPane
 
-from . import __version__, plugins
+from . import __version__, env, plugins
 
 TABS = (("appearance", "Appearance"), ("notifications", "Notifications"), ("chat", "Chat"),
         ("voice", "Voice & video"), ("privacy", "Privacy"), ("plugins", "Plugins"), ("about", "About"))
@@ -213,8 +213,9 @@ class SettingsScreen(ModalScreen):
         yield self.switch("rich_presence_ipc", "Let apps on this computer set your activity",
                           self.app.plugin("rich_presence"), "games and music players use this for Rich Presence")
         yield self.head("Your account")
-        yield Static(Text("Your login is kept in ~/.config/uncord/token, readable only by you. Tokens are scrubbed "
-                          "from ~/.cache/uncord/uncord.log.", style="bright_black"))
+        yield Static(Text(f"Your login is kept in {env.tokenFile()}, readable only by you, unless it comes from "
+                          f"UNCORD_TOKEN or UNCORD_TOKEN_CMD. Tokens are scrubbed from {env.logFile()}.",
+                          style="bright_black"))
         yield Button("Log out", id="btn-logout", variant="error")
         yield Static("", id="privacy-out")
 

@@ -10,9 +10,11 @@ import time
 from pathlib import Path
 from typing import Callable, Optional
 
+from .env import cacheDir
+
 REPO = "https://github.com/epwv/uncord.git"
 DATA_DIR = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "uncord"
-CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "uncord"
+CACHE_DIR = cacheDir()
 CHECK_EVERY = 12 * 3600
 
 
@@ -94,7 +96,7 @@ def checkInBackground(notify: Callable[[str], None]) -> None:
     #fetch at most every 12h and say if theres something new
     src = sourceDir()
     stamp = CACHE_DIR / "update-check"
-    if src is None:
+    if src is None or os.environ.get("UNCORD_NO_UPDATE_CHECK", "") not in ("", "0"):
         return
     try:
         if time.time() - stamp.stat().st_mtime < CHECK_EVERY:

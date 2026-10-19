@@ -13,6 +13,7 @@ UNSAFE = [c for c in range(0x20) if c not in (9, 10)] + [0x7F] + list(range(0x80
     list(range(0x202A, 0x202F)) + list(range(0x2066, 0x206A))
 
 TOKEN = re.compile(r"(?:mfa\.[\w-]{20,}|[\w-]{24,28}\.[\w-]{6}\.[\w-]{27,40})")
+AUTH = re.compile(r"(?i)(authorization['\"]?\s*[:=]\s*['\"]?)[^\s'\",}]+")
 SAFE_SCHEMES = ("http", "https")
 
 
@@ -38,18 +39,18 @@ def clean(text: str) -> str:
     return text.translate({c: None for c in UNSAFE}) if text else text
 
 
-class RedactTokens(logging.Filter):
+#scrubs the finished log line, so the token cant slip out through args, reprs or a traceback
+class RedactingFormatter(logging.Formatter):
 
-    def filter(self, record: logging.LogRecord) -> bool:
-        try:
-            msg = record.getMessage()
-        except Exception:
-            return True
-        if TOKEN.search(msg):
-            record.msg, record.args = TOKEN.sub("[token]", msg), None
-        if record.exc_text and TOKEN.search(record.exc_text):
-            record.exc_text = TOKEN.sub("[token]", record.exc_text)
-        return True
+    def __init__(self, fmt: str, token: str = "") -> None:
+        super().__init__(fmt)
+        self.token = token
+
+    def format(self, record: logging.LogRecord) -> str:
+        out = TOKEN.sub("[token]", super().format(record))
+        if self.token and len(self.token) > 8:
+            out = out.replace(self.token, "[token]")
+        return AUTH.sub(r"\1[token]", out)
 
 
 #only you can read the config dir and logs

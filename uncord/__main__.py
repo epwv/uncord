@@ -4,21 +4,20 @@ import importlib
 import logging
 import os
 import sys
-from pathlib import Path
 
-CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "uncord"
-TOKEN_FILE = CONFIG / "token"
-LOG_FILE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "uncord" / "uncord.log"
+from . import env
+
+env.loadEnvFile()
+CONFIG = env.configDir()
+TOKEN_FILE = env.tokenFile()
+LOG_FILE = env.logFile()
+LEVELS = {"debug": logging.DEBUG, "info": logging.INFO, "warning": logging.WARNING, "error": logging.ERROR}
 
 
 def saveToken(tok: str) -> None:
-    CONFIG.mkdir(parents=True, exist_ok=True)
-    old = os.umask(0o077)
-    try:
-        TOKEN_FILE.write_text(tok + "\n")
-    finally:
-        os.umask(old)
-    TOKEN_FILE.chmod(0o600)
+    if not env.validToken(tok):
+        sys.exit("that doesn't look like a token (spaces or odd characters)")
+    env.saveToken(tok)
 
 
 def loginFlow() -> str:
@@ -58,12 +57,7 @@ def loginFlow() -> str:
 
 
 def getToken() -> str:
-    tok = os.environ.get("DISCORD_TOKEN", "").strip()
-    if tok:
-        return tok
-    if TOKEN_FILE.exists():
-        return TOKEN_FILE.read_text().strip()
-    return loginFlow()
+    return env.token() or loginFlow()
 
 
 DAVE_LOG_PREFIXES = ("Preparing for DAVE", "Executing DAVE", "Set MLS", "MLS ")
@@ -72,7 +66,7 @@ DAVE_LOG_PREFIXES = ("Preparing for DAVE", "Executing DAVE", "Set MLS", "MLS ")
 def moveOldConfig() -> None:
     #this used to be called concord so bring the login and settings over once
     old = CONFIG.parent / "concord"
-    if CONFIG.exists() or not old.is_dir():
+    if CONFIG.name != "uncord" or CONFIG.exists() or not old.is_dir():
         return
     import shutil
 
@@ -88,13 +82,17 @@ def main() -> None:
     moveOldConfig()
     args = sys.argv[1:]
     if args and args[0] in ("-h", "--help"):
-        print("usage: uncord [--login | --logout | --doctor | --update]\n")
+        print("usage: uncord [--login | --logout | --doctor | --update | --env]\n")
         print("  --login   log in again (qr code from the discord app or paste a token)")
         print("  --logout  forget the saved token")
         print("  --doctor  check what uncord can find on this system")
         print("  --update  get the latest uncord from github")
-        print("\ntoken comes from $DISCORD_TOKEN or", TOKEN_FILE)
+        print("  --env     list the environment variables uncord reads")
+        print("\ntoken comes from $UNCORD_TOKEN, $DISCORD_TOKEN, $UNCORD_TOKEN_CMD or", TOKEN_FILE)
         print("Logs:", LOG_FILE)
+        return
+    if args and args[0] == "--env":
+        print(env.describe())
         return
     if args and args[0] == "--update":
         from .update import update
@@ -105,13 +103,13 @@ def main() -> None:
 
         sys.exit(doctor())
     if args and args[0] == "--logout":
-        TOKEN_FILE.unlink(missing_ok=True)
+        env.forgetToken()
         print("token removed")
         return
     if args and args[0] == "--login":
         loginFlow()
         args = []
-    from .safety import RedactTokens, private
+    from .safety import RedactingFormatter, private
 
     private(CONFIG, isDir=True)
     private(TOKEN_FILE)
@@ -123,12 +121,12 @@ def main() -> None:
                  "(./install.sh does this), or run: python setup.py build_ext --inplace")
     token = getToken()
     private(LOG_FILE.parent, isDir=True)
-    logging.basicConfig(
-        filename=LOG_FILE, level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
+    level = LEVELS.get(os.environ.get("UNCORD_LOG_LEVEL", "info").lower(), logging.INFO)
+    logging.basicConfig(filename=LOG_FILE, level=level)
     private(LOG_FILE)
+    #the formatter scrubs the finished line so tracebacks and args cant leak the token either
     for h in logging.getLogger().handlers:
-        h.addFilter(RedactTokens())
+        h.setFormatter(RedactingFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s", token))
     #gateway debug is huge so only keep the e2ee (dave mls) handshake lines from it
     gw = logging.getLogger("discord.gateway")
     gw.setLevel(logging.DEBUG)

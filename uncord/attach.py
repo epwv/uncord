@@ -6,6 +6,7 @@ import io
 import logging
 import os
 import shutil
+import tempfile
 from typing import Optional
 
 import discord
@@ -87,11 +88,13 @@ class AttachMixin:
             return
         fm = filepick.defaultFileManager() if mode == "auto" else (mode, mode, [mode])
         if fm is not None:
-            out = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", f"uncord-pick-{os.getpid()}")
+            #a private folder so nobody else can plant or swap the picker's answer file
+            out = os.path.join(tempfile.mkdtemp(prefix="uncord-pick-", dir=os.environ.get("XDG_RUNTIME_DIR")), "out")
             cmd = filepick.tuiCommand(fm[1], out, start)
             if cmd is not None:
                 self.runTerminalPicker(cmd, out)
             else:
+                shutil.rmtree(os.path.dirname(out), ignore_errors=True)
                 self.portalPick(start, fm)
             return
 
@@ -125,8 +128,10 @@ class AttachMixin:
         except Exception as e:
             log.exception("terminal file picker")
             self.notify(f"Couldn't run {os.path.basename(cmd[0])}: {e}", severity="error", markup=False)
+            shutil.rmtree(os.path.dirname(out), ignore_errors=True)
             return
         paths = filepick.readChosen(out)
+        shutil.rmtree(os.path.dirname(out), ignore_errors=True)
         if paths:
             self._pickedFiles(paths)
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.76 (2026-10-19)
+
+- Environment variables for the token and everything else: `UNCORD_TOKEN` (`DISCORD_TOKEN` still works), `UNCORD_TOKEN_CMD` to get it from a password manager, `UNCORD_TOKEN_FILE`, `UNCORD_CONFIG_DIR`, `UNCORD_CACHE_DIR`, `UNCORD_LOG_FILE`, `UNCORD_LOG_LEVEL` and `UNCORD_NO_UPDATE_CHECK`, on top of the existing ones. `uncord --env` lists them
+- They can go in `~/.config/uncord/env` too (see `uncord.env.example`). Real environment variables win, and only uncord's own keys are read from it
+- The token is taken out of the environment once read, so programs uncord starts (ffmpeg, mpv, pw-record, file pickers, git) don't inherit it
+- Log scrubbing now runs on the finished line, so a token or Authorization header inside an error traceback is hidden too
+- The token and env files are opened without following symlinks and refused if they belong to someone else. The token is saved atomically and checked for stray spaces or control characters
+- `uncord --logout` and Log out in settings overwrite the token file before deleting it
+- The terminal file picker writes its answer into a private temporary folder instead of a guessable path
+
 ## 0.75n (2026-10-15)
 
 - Video receiving and screen sharing moved into a new C++ part (`_rtp.cpp`): the H.264, H.265, VP8, VP9 and AV1 depacketizers, the jitter buffer that reorders packets and asks for resends and keyframes, RTCP reports, outgoing video packets and cutting the capture into frames
