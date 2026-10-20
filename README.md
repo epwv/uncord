@@ -1,4 +1,4 @@
-<img src="assets/banner.png" alt="uncord, discord in your terminal">
+
 
 # uncord
 
