@@ -1,5 +1,3 @@
-
-
 # uncord
 
 Discord in your terminal: servers, DMs, voice and video calls, images and GIFs, and screen sharing both ways. It logs in as your own account, so everything you see in the official app is here too.
