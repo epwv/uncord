@@ -85,7 +85,7 @@ Installing from GitHub failed from 0.75c to 0.75f, fixed in 0.75g.
 - Device icons next to names in chat
 - Members list shows online and offline counts
 - Discord account notices show as a card instead of raw fields
-- Nix flake (`nix run github:epwv/uncord`)
+- Nix flake (`nix run github:owainxyz/uncord`)
 
 ## 0.6 (2026-10-13)
 

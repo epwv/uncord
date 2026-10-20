@@ -14,7 +14,7 @@ classifiers = [
     "Environment :: Console",
     "Topic :: Communications :: Chat",
 ]
-authors = [{ name = "epwv", email = "281472559+epwv@users.noreply.github.com" }]
+authors = [{ name = "owainxyz", email = "281472559+owainxyz@users.noreply.github.com" }]
 dependencies = [
     "discord.py-self[voice] @ git+https://github.com/dolfies/discord.py-self@2ba64a9a997e151a9c259984e0a179b1fdf4aff4",
     "textual>=8.2,<9",
@@ -29,8 +29,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/epwv/uncord"
-Issues = "https://github.com/epwv/uncord/issues"
+Homepage = "https://github.com/owainxyz/uncord"
+Issues = "https://github.com/owainxyz/uncord/issues"
 
 [project.scripts]
 uncord = "uncord.__main__:main"

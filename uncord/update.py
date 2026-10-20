@@ -12,7 +12,7 @@ from typing import Callable, Optional
 
 from .env import cacheDir
 
-REPO = "https://github.com/epwv/uncord.git"
+REPO = "https://github.com/owainxyz/uncord.git"
 DATA_DIR = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "uncord"
 CACHE_DIR = cacheDir()
 CHECK_EVERY = 12 * 3600

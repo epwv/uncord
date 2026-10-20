@@ -41,7 +41,7 @@ uncord runs on Linux (x86_64 or ARM, glibc or musl) with Python 3.10 or newer.
 ### Install script (most distros)
 
 ```sh
-git clone https://github.com/epwv/uncord.git
+git clone https://github.com/owainxyz/uncord.git
 cd uncord
 ./install.sh
 ```
@@ -60,11 +60,11 @@ Update with `uncord --update`. uncord also tells you when an update is out.
 ### Nix
 
 ```sh
-nix run github:epwv/uncord              # try it
-nix profile install github:epwv/uncord  # install it
+nix run github:owainxyz/uncord              # try it
+nix profile install github:owainxyz/uncord  # install it
 ```
 
-uncord isn't in nixpkgs yet, so `nix-env -iA nixpkgs.uncord` won't find it. On NixOS, add the flake to your system: `inputs.uncord.url = "github:epwv/uncord";`, then add `uncord.packages.${system}.default` to your packages.
+uncord isn't in nixpkgs yet, so `nix-env -iA nixpkgs.uncord` won't find it. On NixOS, add the flake to your system: `inputs.uncord.url = "github:owainxyz/uncord";`, then add `uncord.packages.${system}.default` to your packages.
 
 ### By hand
 

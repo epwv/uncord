@@ -2,7 +2,7 @@ pkgbase = uncord-git
 	pkgdesc = Discord in your terminal, with voice calls, inline images and screen sharing
 	pkgver = 0.75.13.r0.g0000000
 	pkgrel = 1
-	url = https://github.com/epwv/uncord
+	url = https://github.com/owainxyz/uncord
 	arch = x86_64
 	arch = aarch64
 	license = MIT
@@ -23,7 +23,7 @@ pkgbase = uncord-git
 	conflicts = uncord
 	options = !strip
 	options = !debug
-	source = uncord::git+https://github.com/epwv/uncord.git
+	source = uncord::git+https://github.com/owainxyz/uncord.git
 	sha256sums = SKIP
 
 pkgname = uncord-git

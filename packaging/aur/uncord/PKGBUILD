@@ -1,11 +1,11 @@
-# Maintainer: epwv <281472559+epwv@users.noreply.github.com>
+# Maintainer: owainxyz <281472559+owainxyz@users.noreply.github.com>
 pkgname=uncord
 _pkgname=uncord
 pkgver=0.75b
 pkgrel=1
 pkgdesc="Discord in your terminal, with voice calls, inline images and screen sharing"
 arch=('x86_64' 'aarch64')
-url="https://github.com/epwv/uncord"
+url="https://github.com/owainxyz/uncord"
 license=('MIT')
 depends=('python' 'ffmpeg' 'opus' 'pipewire')
 makedepends=('python-pip' 'gcc')

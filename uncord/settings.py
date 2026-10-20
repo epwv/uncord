@@ -238,7 +238,7 @@ class SettingsScreen(ModalScreen):
         if user is not None:
             t.append(f"Logged in as {user.name}\n", style="bright_black")
         t.append("\n", style="bright_black")
-        t.append("https://github.com/epwv/uncord\nhttps://discord.gg/fubfK8C6Cm", style="#00a8fc")
+        t.append("https://github.com/owainxyz/uncord\nhttps://discord.gg/fubfK8C6Cm", style="#00a8fc")
         yield Static(t)
         yield Button("Check for updates", id="btn-update")
         yield Button("What's installed", id="btn-doctor")

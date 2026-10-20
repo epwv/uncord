@@ -5,7 +5,7 @@ Bug reports, ideas and pull requests are all welcome. For questions, the [Discor
 ## Setting up
 
 ```sh
-git clone https://github.com/epwv/uncord.git && cd uncord
+git clone https://github.com/owainxyz/uncord.git && cd uncord
 python3 -m venv .venv && .venv/bin/pip install -e .
 .venv/bin/python -m uncord
 ```
